@@ -1,6 +1,7 @@
 import { NavLink } from "react-router-dom";
 import type { ReactNode } from "react";
 import { useAuth } from "../context/AuthContext";
+import { Avatar } from "./Avatar";
 
 const ROLE_LABEL: Record<string, string> = {
   OWNER: "Dono da rede",
@@ -13,14 +14,19 @@ const NAV_BY_ROLE: Record<string, { to: string; label: string }[]> = {
     { to: "/owner", label: "Visão executiva" },
     { to: "/owner/stations", label: "Postos" },
     { to: "/owner/items", label: "Itens e comissionamento" },
+    { to: "/owner/hall-of-fame", label: "🏆 Mural" },
   ],
   MANAGER: [
     { to: "/manager", label: "Equipe e metas" },
     { to: "/manager/redemptions", label: "Resgates" },
+    { to: "/manager/ranking", label: "🏆 Ranking da rede" },
+    { to: "/manager/hall-of-fame", label: "🏆 Mural" },
   ],
   ATTENDANT: [
     { to: "/attendant", label: "Minhas metas" },
     { to: "/attendant/redemptions", label: "Resgates" },
+    { to: "/attendant/ranking", label: "🏆 Ranking do posto" },
+    { to: "/attendant/hall-of-fame", label: "🏆 Mural" },
   ],
 };
 
@@ -41,9 +47,14 @@ export function Shell({ children }: { children: ReactNode }) {
           ))}
         </nav>
         <div className="user-box">
-          <div>{user.name}</div>
-          <div>{ROLE_LABEL[user.role]}</div>
-          <button className="btn secondary small" style={{ marginTop: "0.6rem" }} onClick={logout}>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", marginBottom: "0.4rem" }}>
+            <Avatar name={user.name} photoUrl={user.photoUrl} size={32} />
+            <div>
+              <div style={{ color: "var(--text)" }}>{user.name}</div>
+              <div>{ROLE_LABEL[user.role]}</div>
+            </div>
+          </div>
+          <button className="btn secondary small" onClick={logout}>
             Sair
           </button>
         </div>

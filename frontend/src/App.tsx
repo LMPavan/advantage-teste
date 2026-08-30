@@ -4,11 +4,14 @@ import { LoginPage } from "./pages/Login";
 import { Shell } from "./components/Shell";
 import { AttendantGoals } from "./pages/AttendantGoals";
 import { AttendantRedemptions } from "./pages/AttendantRedemptions";
+import { AttendantRanking } from "./pages/AttendantRanking";
 import { ManagerTeam } from "./pages/ManagerTeam";
 import { ManagerRedemptions } from "./pages/ManagerRedemptions";
+import { ManagerRanking } from "./pages/ManagerRanking";
 import { OwnerExecutive } from "./pages/OwnerExecutive";
 import { OwnerStations } from "./pages/OwnerStations";
 import { OwnerItems } from "./pages/OwnerItems";
+import { HallOfFame } from "./pages/HallOfFame";
 import type { Role } from "./types";
 
 function HomeRedirect() {
@@ -51,6 +54,22 @@ export default function App() {
           </Protected>
         }
       />
+      <Route
+        path="/attendant/ranking"
+        element={
+          <Protected roles={["ATTENDANT"]}>
+            <AttendantRanking />
+          </Protected>
+        }
+      />
+      <Route
+        path="/attendant/hall-of-fame"
+        element={
+          <Protected roles={["ATTENDANT"]}>
+            <HallOfFame />
+          </Protected>
+        }
+      />
 
       <Route
         path="/manager"
@@ -65,6 +84,22 @@ export default function App() {
         element={
           <Protected roles={["MANAGER"]}>
             <ManagerRedemptions />
+          </Protected>
+        }
+      />
+      <Route
+        path="/manager/ranking"
+        element={
+          <Protected roles={["MANAGER"]}>
+            <ManagerRanking />
+          </Protected>
+        }
+      />
+      <Route
+        path="/manager/hall-of-fame"
+        element={
+          <Protected roles={["MANAGER"]}>
+            <HallOfFame />
           </Protected>
         }
       />
@@ -90,6 +125,14 @@ export default function App() {
         element={
           <Protected roles={["OWNER"]}>
             <OwnerItems />
+          </Protected>
+        }
+      />
+      <Route
+        path="/owner/hall-of-fame"
+        element={
+          <Protected roles={["OWNER"]}>
+            <HallOfFame />
           </Protected>
         }
       />

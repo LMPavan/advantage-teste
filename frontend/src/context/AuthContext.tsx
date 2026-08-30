@@ -1,12 +1,26 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { api, getToken, setToken } from "../api/client";
-import type { AuthUser } from "../types";
+import type { AuthUser, Role } from "../types";
 
 interface AuthContextValue {
   user: AuthUser | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  registerOwner: (data: { name: string; email: string; password: string; networkName: string }) => Promise<void>;
+  registerOwner: (data: {
+    name: string;
+    email: string;
+    password: string;
+    networkName: string;
+    photoUrl?: string | null;
+  }) => Promise<void>;
+  registerWithCode: (data: {
+    role: Extract<Role, "MANAGER" | "ATTENDANT">;
+    name: string;
+    email: string;
+    password: string;
+    inviteCode: string;
+    photoUrl?: string | null;
+  }) => Promise<void>;
   logout: () => void;
 }
 
@@ -35,8 +49,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(res.user);
   }
 
-  async function registerOwner(data: { name: string; email: string; password: string; networkName: string }) {
+  async function registerOwner(data: {
+    name: string;
+    email: string;
+    password: string;
+    networkName: string;
+    photoUrl?: string | null;
+  }) {
     const res = await api.post<{ token: string; user: AuthUser }>("/auth/register-owner", data);
+    setToken(res.token);
+    setUser(res.user);
+  }
+
+  async function registerWithCode(data: {
+    role: Extract<Role, "MANAGER" | "ATTENDANT">;
+    name: string;
+    email: string;
+    password: string;
+    inviteCode: string;
+    photoUrl?: string | null;
+  }) {
+    const res = await api.post<{ token: string; user: AuthUser }>("/auth/register", data);
     setToken(res.token);
     setUser(res.user);
   }
@@ -47,7 +80,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, registerOwner, logout }}>{children}</AuthContext.Provider>
+    <AuthContext.Provider value={{ user, loading, login, registerOwner, registerWithCode, logout }}>
+      {children}
+    </AuthContext.Provider>
   );
 }
 

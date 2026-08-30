@@ -16,6 +16,7 @@ export interface AuthUser {
   name: string;
   email: string;
   role: Role;
+  photoUrl?: string | null;
   networkId: string | null;
   stationId: string | null;
 }
@@ -51,7 +52,7 @@ export interface Goal {
   startDate: string;
   endDate: string;
   item: Item;
-  attendant: { id: string; name: string; email: string } | null;
+  attendant: { id: string; name: string; email: string; photoUrl?: string | null } | null;
   station?: { id: string; name: string };
   progress: GoalProgress;
 }
@@ -70,9 +71,12 @@ export interface Station {
   code: string;
   address?: string | null;
   networkId: string;
-  manager: { id: string; name: string; email: string } | null;
+  manager: { id: string; name: string; email: string; photoUrl?: string | null } | null;
   redemptionPolicy: RedemptionPolicy | null;
   _count?: { attendants: number };
+  // Ausentes na resposta para o papel ATTENDANT (não precisam desses códigos).
+  managerInviteCode?: string;
+  attendantInviteCode?: string;
 }
 
 export interface Attendant {
@@ -80,6 +84,7 @@ export interface Attendant {
   name: string;
   email: string;
   stationId: string;
+  photoUrl?: string | null;
 }
 
 export interface Redemption {
@@ -97,26 +102,33 @@ export interface Redemption {
   notes?: string | null;
 }
 
+export interface StationRankingRow {
+  stationId: string;
+  stationName: string;
+  managerId: string | null;
+  managerName: string | null;
+  managerPhotoUrl?: string | null;
+  avgAchievement: number;
+  totalCommission: number;
+  attendantsCount: number;
+}
+
+export interface AttendantRankingRow {
+  attendantId: string;
+  name: string;
+  photoUrl?: string | null;
+  stationId: string;
+  stationName: string;
+  avgAchievement: number;
+  totalCommission: number;
+  goalsCount: number;
+}
+
 export interface ExecutiveDashboard {
   stationsCount: number;
   totalCommission: number;
-  stationRankings: {
-    stationId: string;
-    stationName: string;
-    managerName: string | null;
-    avgAchievement: number;
-    totalCommission: number;
-    attendantsCount: number;
-  }[];
-  attendantRankings: {
-    attendantId: string;
-    name: string;
-    stationId: string;
-    stationName: string;
-    avgAchievement: number;
-    totalCommission: number;
-    goalsCount: number;
-  }[];
+  stationRankings: StationRankingRow[];
+  attendantRankings: AttendantRankingRow[];
 }
 
 export interface TeamDashboard {
@@ -128,4 +140,10 @@ export interface TeamDashboard {
     avgAchievement: number;
     totalCommission: number;
   }[];
+}
+
+export interface HallOfFame {
+  month: string;
+  topAttendants: AttendantRankingRow[];
+  topStations: StationRankingRow[];
 }

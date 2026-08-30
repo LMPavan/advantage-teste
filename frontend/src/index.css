@@ -306,3 +306,179 @@ h2 {
   margin-bottom: 0;
   min-width: 160px;
 }
+
+/* ---------------------------------------------------------------------- */
+/* Gamificação: ranking, medalhas e molduras ouro/prata/bronze            */
+/* ---------------------------------------------------------------------- */
+
+.rank-row {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 0.75rem 0.9rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  margin-bottom: 0.6rem;
+}
+.rank-row.self {
+  outline: 2px solid var(--primary);
+}
+.rank-row.gold {
+  background: linear-gradient(135deg, rgba(250, 204, 21, 0.16), rgba(250, 204, 21, 0.04));
+  border-color: #facc15;
+  box-shadow: 0 0 0 1px rgba(250, 204, 21, 0.35), 0 4px 18px rgba(250, 204, 21, 0.12);
+}
+.rank-row.silver {
+  background: linear-gradient(135deg, rgba(203, 213, 225, 0.18), rgba(203, 213, 225, 0.04));
+  border-color: #cbd5e1;
+  box-shadow: 0 0 0 1px rgba(203, 213, 225, 0.3), 0 4px 18px rgba(203, 213, 225, 0.1);
+}
+.rank-row.bronze {
+  background: linear-gradient(135deg, rgba(217, 119, 6, 0.18), rgba(217, 119, 6, 0.04));
+  border-color: #d97706;
+  box-shadow: 0 0 0 1px rgba(217, 119, 6, 0.3), 0 4px 18px rgba(217, 119, 6, 0.1);
+}
+
+.rank-number {
+  width: 2.2rem;
+  flex-shrink: 0;
+  text-align: center;
+  font-weight: 700;
+}
+.rank-plain {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+.medal {
+  font-size: 1.5rem;
+  line-height: 1;
+}
+
+.rank-identity {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  flex: 1;
+  min-width: 0;
+}
+.rank-identity .name {
+  font-weight: 600;
+}
+.rank-identity .meta {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+.rank-stats {
+  display: flex;
+  gap: 1.4rem;
+  align-items: center;
+  flex-shrink: 0;
+}
+.rank-stat {
+  text-align: right;
+}
+.rank-stat .value {
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+.rank-stat .label {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+/* Mural / hall da fama: pódio em destaque para o mês anterior */
+.podium {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 1rem;
+}
+.podium-card {
+  border-radius: var(--radius);
+  padding: 1.3rem 1rem;
+  text-align: center;
+  border: 1px solid var(--border);
+  background: var(--surface);
+}
+.podium-card.gold {
+  background: linear-gradient(160deg, rgba(250, 204, 21, 0.22), rgba(250, 204, 21, 0.03));
+  border-color: #facc15;
+  box-shadow: 0 0 0 1px rgba(250, 204, 21, 0.4), 0 8px 24px rgba(250, 204, 21, 0.18);
+  transform: scale(1.03);
+}
+.podium-card.silver {
+  background: linear-gradient(160deg, rgba(203, 213, 225, 0.22), rgba(203, 213, 225, 0.03));
+  border-color: #cbd5e1;
+  box-shadow: 0 0 0 1px rgba(203, 213, 225, 0.35), 0 8px 24px rgba(203, 213, 225, 0.14);
+}
+.podium-card.bronze {
+  background: linear-gradient(160deg, rgba(217, 119, 6, 0.22), rgba(217, 119, 6, 0.03));
+  border-color: #d97706;
+  box-shadow: 0 0 0 1px rgba(217, 119, 6, 0.35), 0 8px 24px rgba(217, 119, 6, 0.14);
+}
+.podium-card .medal {
+  font-size: 2.2rem;
+  display: block;
+  margin-bottom: 0.4rem;
+}
+.podium-card .podium-avatar {
+  margin: 0 auto 0.6rem;
+}
+.podium-card .name {
+  font-weight: 700;
+}
+.podium-card .meta {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin: 0.15rem 0 0.5rem;
+}
+.podium-card .value {
+  font-size: 1.3rem;
+  font-weight: 800;
+}
+.podium-card .value-label {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.avatar-upload {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+}
+.avatar-upload .avatar-preview {
+  border: 2px dashed var(--border);
+  border-radius: 50%;
+}
+
+.invite-code {
+  font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+  letter-spacing: 0.05em;
+  background: var(--bg-soft);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.15rem 0.5rem;
+  font-size: 0.85rem;
+}
+
+.role-picker {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+.role-picker button {
+  flex: 1;
+  padding: 0.55rem 0.4rem;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-soft);
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+.role-picker button.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: white;
+}

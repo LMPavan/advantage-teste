@@ -82,6 +82,11 @@ model Station {
   manager   User?    @relation("StationManager", fields: [managerId], references: [id])
   createdAt DateTime @default(now())
 
+  // Códigos que o dono (ou o gerente, no caso do de frentista) compartilha para
+  // que o funcionário se auto-cadastre já vinculado a este posto.
+  managerInviteCode    String @unique
+  attendantInviteCode  String @unique
+
   attendants       User[]            @relation("StationAttendants")
   goals            Goal[]
   redemptionPolicy RedemptionPolicy?
@@ -96,6 +101,7 @@ model User {
   email        String   @unique
   passwordHash String
   role         Role
+  photoUrl     String?  @db.Text // avatar (data URI) usado nos rankings/mural de gamificação
   createdAt    DateTime @default(now())
 
   // OWNER: dono da rede (relação inversa de Network.owner)

@@ -122,6 +122,53 @@ function PolicyEditor({ station, onUpdated }: { station: Station; onUpdated: () 
   );
 }
 
+function InviteCodesCell({ station, onUpdated }: { station: Station; onUpdated: () => void }) {
+  const [copiedType, setCopiedType] = useState<"MANAGER" | "ATTENDANT" | null>(null);
+  const [regenerating, setRegenerating] = useState<"MANAGER" | "ATTENDANT" | null>(null);
+
+  async function copy(type: "MANAGER" | "ATTENDANT", code?: string) {
+    if (!code) return;
+    await navigator.clipboard.writeText(code);
+    setCopiedType(type);
+    setTimeout(() => setCopiedType(null), 1500);
+  }
+
+  async function regenerate(type: "MANAGER" | "ATTENDANT") {
+    setRegenerating(type);
+    try {
+      await api.post(`/stations/${station.id}/invite-codes/regenerate`, { type });
+      onUpdated();
+    } finally {
+      setRegenerating(null);
+    }
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "0.3rem", fontSize: "0.8rem" }}>
+      <div style={{ display: "flex", gap: "0.4rem", alignItems: "center" }}>
+        <span style={{ color: "var(--text-muted)", minWidth: 60 }}>Gerente:</span>
+        <span className="invite-code">{station.managerInviteCode}</span>
+        <button className="btn secondary small" onClick={() => copy("MANAGER", station.managerInviteCode)}>
+          {copiedType === "MANAGER" ? "✓" : "Copiar"}
+        </button>
+        <button className="btn secondary small" onClick={() => regenerate("MANAGER")} disabled={regenerating === "MANAGER"}>
+          ↻
+        </button>
+      </div>
+      <div style={{ display: "flex", gap: "0.4rem", alignItems: "center" }}>
+        <span style={{ color: "var(--text-muted)", minWidth: 60 }}>Frentista:</span>
+        <span className="invite-code">{station.attendantInviteCode}</span>
+        <button className="btn secondary small" onClick={() => copy("ATTENDANT", station.attendantInviteCode)}>
+          {copiedType === "ATTENDANT" ? "✓" : "Copiar"}
+        </button>
+        <button className="btn secondary small" onClick={() => regenerate("ATTENDANT")} disabled={regenerating === "ATTENDANT"}>
+          ↻
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function OwnerStations() {
   const [stations, setStations] = useState<Station[]>([]);
 
@@ -147,6 +194,7 @@ export function OwnerStations() {
               <th>Código</th>
               <th>Gerente</th>
               <th>Frentistas</th>
+              <th>Códigos de convite</th>
               <th>Resgates liberados</th>
             </tr>
           </thead>
@@ -157,6 +205,9 @@ export function OwnerStations() {
                 <td>{s.code}</td>
                 <td>{s.manager?.name ?? "—"}</td>
                 <td>{s._count?.attendants ?? 0}</td>
+                <td>
+                  <InviteCodesCell station={s} onUpdated={load} />
+                </td>
                 <td>
                   <PolicyEditor station={s} onUpdated={load} />
                 </td>

@@ -2,15 +2,30 @@ import { useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { ApiError } from "../api/client";
+import { PhotoUpload } from "../components/PhotoUpload";
+import type { Role } from "../types";
+
+type Mode = "login" | "register";
+type RegisterRole = Role;
+
+const ROLE_OPTIONS: { value: RegisterRole; label: string }[] = [
+  { value: "OWNER", label: "Sou dono de rede/posto" },
+  { value: "MANAGER", label: "Sou gerente" },
+  { value: "ATTENDANT", label: "Sou frentista" },
+];
 
 export function LoginPage() {
-  const { login, registerOwner } = useAuth();
+  const { login, registerOwner, registerWithCode } = useAuth();
   const navigate = useNavigate();
-  const [mode, setMode] = useState<"login" | "register">("login");
+  const [mode, setMode] = useState<Mode>("login");
+  const [registerRole, setRegisterRole] = useState<RegisterRole>("OWNER");
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [networkName, setNetworkName] = useState("");
+  const [inviteCode, setInviteCode] = useState("");
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -21,8 +36,17 @@ export function LoginPage() {
     try {
       if (mode === "login") {
         await login(email, password);
+      } else if (registerRole === "OWNER") {
+        await registerOwner({ name, email, password, networkName, photoUrl });
       } else {
-        await registerOwner({ name, email, password, networkName });
+        await registerWithCode({
+          role: registerRole,
+          name,
+          email,
+          password,
+          inviteCode,
+          photoUrl,
+        });
       }
       navigate("/", { replace: true });
     } catch (err) {
@@ -37,9 +61,23 @@ export function LoginPage() {
       <div className="auth-card">
         <div className="card">
           <h1>⛽ Metas Posto</h1>
-          <p className="subtitle">
-            {mode === "login" ? "Entre com sua conta" : "Cadastre sua rede/posto como dono"}
-          </p>
+          <p className="subtitle">{mode === "login" ? "Entre com sua conta" : "Crie sua conta"}</p>
+
+          {mode === "register" && (
+            <div className="role-picker">
+              {ROLE_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  className={registerRole === opt.value ? "active" : ""}
+                  onClick={() => setRegisterRole(opt.value)}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          )}
+
           <form onSubmit={handleSubmit}>
             {mode === "register" && (
               <div className="field">
@@ -68,7 +106,8 @@ export function LoginPage() {
                 minLength={6}
               />
             </div>
-            {mode === "register" && (
+
+            {mode === "register" && registerRole === "OWNER" && (
               <div className="field">
                 <label>Nome da rede/posto</label>
                 <input
@@ -79,16 +118,36 @@ export function LoginPage() {
                 />
               </div>
             )}
+
+            {mode === "register" && (registerRole === "MANAGER" || registerRole === "ATTENDANT") && (
+              <div className="field">
+                <label>Código de convite do posto</label>
+                <input
+                  className="input"
+                  value={inviteCode}
+                  onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
+                  placeholder="Peça ao dono do posto"
+                  required
+                />
+                <span style={{ fontSize: "0.78rem", color: "var(--text-muted)" }}>
+                  {registerRole === "MANAGER"
+                    ? "Código específico de gerente, fornecido pelo dono da rede."
+                    : "Código de frentista, fornecido pelo dono ou pelo gerente do posto."}
+                </span>
+              </div>
+            )}
+
+            {mode === "register" && <PhotoUpload name={name} value={photoUrl} onChange={setPhotoUrl} />}
+
             {error && <p className="error-text">{error}</p>}
             <button className="btn" type="submit" disabled={loading} style={{ width: "100%" }}>
-              {loading ? "Aguarde..." : mode === "login" ? "Entrar" : "Criar conta de dono"}
+              {loading ? "Aguarde..." : mode === "login" ? "Entrar" : "Criar conta"}
             </button>
           </form>
           <div className="auth-switch">
             {mode === "login" ? (
               <>
-                É dono de posto e ainda não tem conta?{" "}
-                <button onClick={() => setMode("register")}>Cadastre sua rede</button>
+                Ainda não tem conta? <button onClick={() => setMode("register")}>Cadastre-se</button>
               </>
             ) : (
               <>

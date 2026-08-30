@@ -1,122 +1,102 @@
 import { Router } from "express";
+import { z } from "zod";
 import { prisma } from "../prisma";
 import { requireAuth, requireRole } from "../middleware/auth";
-import { computeGoalProgress } from "../services/commission.service";
+import { computeGoalProgress, round2 } from "../services/commission.service";
+import {
+  getAttendantRanking,
+  getNetworkAttendantRanking,
+  getStationRanking,
+  monthRangeFromParam,
+} from "../services/ranking.service";
 
 export const dashboardRouter = Router();
 dashboardRouter.use(requireAuth);
 
-interface AttendantRanking {
-  attendantId: string;
-  name: string;
-  stationId: string;
-  stationName: string;
-  avgAchievement: number;
-  totalCommission: number;
-  goalsCount: number;
-}
-
-interface StationRanking {
-  stationId: string;
-  stationName: string;
-  managerName: string | null;
-  avgAchievement: number;
-  totalCommission: number;
-  attendantsCount: number;
-}
-
-// Visão executiva do dono: ranking de postos/gerentes e de frentistas em toda a rede.
+// Visão executiva do dono: ranking de postos/gerentes e de frentistas em toda a rede (período atual).
 dashboardRouter.get("/executive", requireRole("OWNER"), async (req, res) => {
   const networkId = req.auth!.networkId!;
 
-  const stations = await prisma.station.findMany({
-    where: { networkId },
-    include: { manager: true, attendants: true },
-  });
-
-  const attendantMap = new Map<string, AttendantRanking>();
-  const stationRankings: StationRanking[] = [];
-
-  for (const station of stations) {
-    const goals = await prisma.goal.findMany({ where: { stationId: station.id } });
-    let stationAchievementSum = 0;
-    let stationCommissionSum = 0;
-
-    for (const goal of goals) {
-      const progress = await computeGoalProgress(goal.id);
-      stationAchievementSum += progress.achievementPercent;
-      stationCommissionSum += progress.commissionAmount;
-
-      if (goal.attendantId) {
-        const attendant = station.attendants.find((a) => a.id === goal.attendantId);
-        if (attendant) {
-          const current = attendantMap.get(attendant.id) ?? {
-            attendantId: attendant.id,
-            name: attendant.name,
-            stationId: station.id,
-            stationName: station.name,
-            avgAchievement: 0,
-            totalCommission: 0,
-            goalsCount: 0,
-          };
-          current.avgAchievement =
-            (current.avgAchievement * current.goalsCount + progress.achievementPercent) / (current.goalsCount + 1);
-          current.totalCommission = Math.round((current.totalCommission + progress.commissionAmount) * 100) / 100;
-          current.goalsCount += 1;
-          attendantMap.set(attendant.id, current);
-        }
-      }
-    }
-
-    stationRankings.push({
-      stationId: station.id,
-      stationName: station.name,
-      managerName: station.manager?.name ?? null,
-      avgAchievement: goals.length ? Math.round((stationAchievementSum / goals.length) * 100) / 100 : 0,
-      totalCommission: Math.round(stationCommissionSum * 100) / 100,
-      attendantsCount: station.attendants.length,
-    });
-  }
-
-  const attendantRankings = Array.from(attendantMap.values())
-    .map((a) => ({ ...a, avgAchievement: Math.round(a.avgAchievement * 100) / 100 }))
-    .sort((a, b) => b.avgAchievement - a.avgAchievement);
-
-  stationRankings.sort((a, b) => b.avgAchievement - a.avgAchievement);
+  const [stationRankings, attendantRankings] = await Promise.all([
+    getStationRanking(networkId),
+    getNetworkAttendantRanking(networkId),
+  ]);
 
   return res.json({
-    stationsCount: stations.length,
-    totalCommission: Math.round(stationRankings.reduce((sum, s) => sum + s.totalCommission, 0) * 100) / 100,
+    stationsCount: stationRankings.length,
+    totalCommission: round2(stationRankings.reduce((sum, s) => sum + s.totalCommission, 0)),
     stationRankings,
     attendantRankings,
   });
 });
 
-// Visão do gerente: desempenho consolidado da equipe do próprio posto.
+// Visão do gerente: desempenho consolidado da equipe do próprio posto (período atual).
 dashboardRouter.get("/team", requireRole("MANAGER"), async (req, res) => {
   const stationId = req.auth!.stationId!;
+  const rows = await getAttendantRanking(stationId);
+  return res.json({
+    stationId,
+    attendants: rows.map((r) => ({
+      attendantId: r.attendantId,
+      name: r.name,
+      goalsCount: r.goalsCount,
+      avgAchievement: r.avgAchievement,
+      totalCommission: r.totalCommission,
+    })),
+  });
+});
 
-  const attendants = await prisma.user.findMany({ where: { role: "ATTENDANT", stationId } });
-  const goals = await prisma.goal.findMany({ where: { stationId }, include: { item: true } });
+const monthQuerySchema = z.object({ month: z.string().regex(/^\d{4}-\d{2}$/).optional() });
 
-  const results = await Promise.all(
-    attendants.map(async (attendant) => {
-      const attendantGoals = goals.filter((g) => g.attendantId === attendant.id);
-      const progresses = await Promise.all(attendantGoals.map((g) => computeGoalProgress(g.id)));
-      const avgAchievement = progresses.length
-        ? Math.round((progresses.reduce((s, p) => s + p.achievementPercent, 0) / progresses.length) * 100) / 100
-        : 0;
-      const totalCommission = Math.round(progresses.reduce((s, p) => s + p.commissionAmount, 0) * 100) / 100;
-      return {
-        attendantId: attendant.id,
-        name: attendant.name,
-        goalsCount: attendantGoals.length,
-        avgAchievement,
-        totalCommission,
-      };
-    })
-  );
+// Ranking gamificado dos frentistas do posto (usado por ATTENDANT, MANAGER e OWNER).
+// ATTENDANT/MANAGER usam seu próprio posto; OWNER precisa informar ?stationId=.
+dashboardRouter.get("/station-ranking", requireRole("ATTENDANT", "MANAGER", "OWNER"), async (req, res) => {
+  const { role, stationId: authStationId, networkId } = req.auth!;
+  const monthParsed = monthQuerySchema.safeParse(req.query);
+  const month = monthParsed.success ? monthParsed.data.month : undefined;
 
-  results.sort((a, b) => b.avgAchievement - a.avgAchievement);
-  return res.json({ stationId, attendants: results });
+  let targetStationId = authStationId ?? undefined;
+  if (role === "OWNER") {
+    targetStationId = (req.query.stationId as string | undefined) ?? undefined;
+    if (!targetStationId) {
+      return res.status(400).json({ error: "Informe o posto (stationId)." });
+    }
+    const station = await prisma.station.findUnique({ where: { id: targetStationId } });
+    if (!station || station.networkId !== networkId) {
+      return res.status(403).json({ error: "Sem acesso a este posto." });
+    }
+  }
+  if (!targetStationId) return res.json([]);
+
+  const rows = await getAttendantRanking(targetStationId, month ? monthRangeFromParam(month) : undefined);
+  return res.json(rows);
+});
+
+// Ranking gamificado dos postos/gerentes da rede (usado por MANAGER e OWNER).
+dashboardRouter.get("/network-ranking", requireRole("MANAGER", "OWNER"), async (req, res) => {
+  const networkId = req.auth!.networkId!;
+  const monthParsed = monthQuerySchema.safeParse(req.query);
+  const month = monthParsed.success ? monthParsed.data.month : undefined;
+
+  const rows = await getStationRanking(networkId, month ? monthRangeFromParam(month) : undefined);
+  return res.json(rows);
+});
+
+// Mural / hall da fama: top 3 frentistas e top 3 postos do mês anterior (ou de ?month=), em toda a rede.
+// Visível para os três papéis, já que celebra os destaques de toda a rede.
+dashboardRouter.get("/hall-of-fame", requireRole("ATTENDANT", "MANAGER", "OWNER"), async (req, res) => {
+  const networkId = req.auth!.networkId!;
+  const monthParsed = monthQuerySchema.safeParse(req.query);
+  const range = monthRangeFromParam(monthParsed.success ? monthParsed.data.month : undefined);
+
+  const [attendantRankings, stationRankings] = await Promise.all([
+    getNetworkAttendantRanking(networkId, range),
+    getStationRanking(networkId, range),
+  ]);
+
+  return res.json({
+    month: `${range.start.getFullYear()}-${String(range.start.getMonth() + 1).padStart(2, "0")}`,
+    topAttendants: attendantRankings.filter((a) => a.goalsCount > 0).slice(0, 3),
+    topStations: stationRankings.filter((s) => s.attendantsCount > 0).slice(0, 3),
+  });
 });

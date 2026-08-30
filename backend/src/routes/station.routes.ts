@@ -3,9 +3,36 @@ import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { prisma } from "../prisma";
 import { requireAuth, requireRole } from "../middleware/auth";
+import { generateInviteCode } from "../utils/inviteCode";
 
 export const stationRouter = Router();
 stationRouter.use(requireAuth);
+
+/** Gera um par de códigos de convite (gerente/frentista) garantindo que não colidam com códigos existentes. */
+async function generateUniqueInviteCodes() {
+  for (let attempt = 0; attempt < 10; attempt++) {
+    const managerInviteCode = generateInviteCode();
+    const attendantInviteCode = generateInviteCode();
+    const clash = await prisma.station.findFirst({
+      where: { OR: [{ managerInviteCode }, { attendantInviteCode }] },
+      select: { id: true },
+    });
+    if (!clash) return { managerInviteCode, attendantInviteCode };
+  }
+  throw new Error("Não foi possível gerar códigos de convite únicos. Tente novamente.");
+}
+
+/** Remove os códigos de convite da resposta quando quem consulta é um frentista (não precisa deles). */
+function withCodesVisibleTo<T extends { managerInviteCode?: string; attendantInviteCode?: string }>(
+  station: T,
+  role: string
+): T {
+  if (role === "ATTENDANT") {
+    const { managerInviteCode, attendantInviteCode, ...rest } = station;
+    return rest as T;
+  }
+  return station;
+}
 
 const createStationSchema = z.object({
   name: z.string().min(1),
@@ -28,10 +55,11 @@ stationRouter.post("/", requireRole("OWNER"), async (req, res) => {
   }
   const { name, code, address, manager } = parsed.data;
   const networkId = req.auth!.networkId!;
+  const inviteCodes = await generateUniqueInviteCodes();
 
   const station = await prisma.$transaction(async (tx) => {
     const station = await tx.station.create({
-      data: { name, code, address, networkId },
+      data: { name, code, address, networkId, ...inviteCodes },
     });
 
     if (manager) {
@@ -71,24 +99,24 @@ stationRouter.get("/", async (req, res) => {
   if (role === "OWNER") {
     const stations = await prisma.station.findMany({
       where: { networkId: networkId! },
-      include: { manager: { select: { id: true, name: true, email: true } }, redemptionPolicy: true, _count: { select: { attendants: true } } },
+      include: { manager: { select: { id: true, name: true, email: true, photoUrl: true } }, redemptionPolicy: true, _count: { select: { attendants: true } } },
       orderBy: { createdAt: "asc" },
     });
-    return res.json(stations);
+    return res.json(stations.map((s) => withCodesVisibleTo(s, role)));
   }
 
   if (!stationId) return res.json([]);
   const station = await prisma.station.findUnique({
     where: { id: stationId },
-    include: { manager: { select: { id: true, name: true, email: true } }, redemptionPolicy: true, _count: { select: { attendants: true } } },
+    include: { manager: { select: { id: true, name: true, email: true, photoUrl: true } }, redemptionPolicy: true, _count: { select: { attendants: true } } },
   });
-  return res.json(station ? [station] : []);
+  return res.json(station ? [withCodesVisibleTo(station, role)] : []);
 });
 
 stationRouter.get("/:id", async (req, res) => {
   const station = await prisma.station.findUnique({
     where: { id: req.params.id },
-    include: { manager: { select: { id: true, name: true, email: true } }, redemptionPolicy: true },
+    include: { manager: { select: { id: true, name: true, email: true, photoUrl: true } }, redemptionPolicy: true },
   });
   if (!station) return res.status(404).json({ error: "Posto não encontrado." });
 
@@ -100,7 +128,7 @@ stationRouter.get("/:id", async (req, res) => {
     return res.status(403).json({ error: "Sem acesso a este posto." });
   }
 
-  return res.json(station);
+  return res.json(withCodesVisibleTo(station, role));
 });
 
 const updatePolicySchema = z.object({
@@ -134,4 +162,57 @@ stationRouter.patch("/:id/redemption-policy", requireRole("OWNER", "MANAGER"), a
   });
 
   return res.json(policy);
+});
+
+const regenerateCodeSchema = z.object({
+  type: z.enum(["MANAGER", "ATTENDANT"]),
+});
+
+// Regenera um código de convite (invalida o anterior). OWNER pode regenerar qualquer um dos
+// códigos de qualquer posto da rede; MANAGER só pode regenerar o código de frentista do próprio posto.
+stationRouter.post("/:id/invite-codes/regenerate", requireRole("OWNER", "MANAGER"), async (req, res) => {
+  const parsed = regenerateCodeSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Dados inválidos.", details: parsed.error.flatten() });
+  }
+
+  const station = await prisma.station.findUnique({ where: { id: req.params.id } });
+  if (!station) return res.status(404).json({ error: "Posto não encontrado." });
+
+  const { role, networkId, stationId } = req.auth!;
+  if (role === "OWNER" && station.networkId !== networkId) {
+    return res.status(403).json({ error: "Sem acesso a este posto." });
+  }
+  if (role === "MANAGER") {
+    if (station.id !== stationId) {
+      return res.status(403).json({ error: "Sem acesso a este posto." });
+    }
+    if (parsed.data.type !== "ATTENDANT") {
+      return res.status(403).json({ error: "Apenas o dono da rede pode regenerar o código de gerente." });
+    }
+  }
+
+  let newCode = "";
+  for (let attempt = 0; attempt < 10; attempt++) {
+    const candidate = generateInviteCode();
+    const clash = await prisma.station.findFirst({
+      where: { OR: [{ managerInviteCode: candidate }, { attendantInviteCode: candidate }] },
+      select: { id: true },
+    });
+    if (!clash) {
+      newCode = candidate;
+      break;
+    }
+  }
+  if (!newCode) return res.status(500).json({ error: "Não foi possível gerar um novo código. Tente novamente." });
+
+  const updated = await prisma.station.update({
+    where: { id: station.id },
+    data: parsed.data.type === "MANAGER" ? { managerInviteCode: newCode } : { attendantInviteCode: newCode },
+  });
+
+  return res.json({
+    managerInviteCode: updated.managerInviteCode,
+    attendantInviteCode: updated.attendantInviteCode,
+  });
 });

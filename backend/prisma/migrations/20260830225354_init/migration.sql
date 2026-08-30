@@ -38,6 +38,8 @@ CREATE TABLE "Station" (
     "networkId" TEXT NOT NULL,
     "managerId" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "managerInviteCode" TEXT NOT NULL,
+    "attendantInviteCode" TEXT NOT NULL,
 
     CONSTRAINT "Station_pkey" PRIMARY KEY ("id")
 );
@@ -49,6 +51,7 @@ CREATE TABLE "User" (
     "email" TEXT NOT NULL,
     "passwordHash" TEXT NOT NULL,
     "role" "Role" NOT NULL,
+    "photoUrl" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "stationId" TEXT,
 
@@ -139,6 +142,12 @@ CREATE UNIQUE INDEX "Network_ownerId_key" ON "Network"("ownerId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Station_managerId_key" ON "Station"("managerId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "Station_managerInviteCode_key" ON "Station"("managerInviteCode");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "Station_attendantInviteCode_key" ON "Station"("attendantInviteCode");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Station_networkId_code_key" ON "Station"("networkId", "code");

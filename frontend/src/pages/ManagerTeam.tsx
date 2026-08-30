@@ -1,7 +1,47 @@
 import { useEffect, useState } from "react";
 import { api, ApiError } from "../api/client";
-import type { Attendant, Goal, Item, Period, TeamDashboard } from "../types";
+import type { Attendant, Goal, Item, Period, Station, TeamDashboard } from "../types";
 import { AchievementBadge, ProgressBar } from "../components/ProgressBar";
+
+function InviteCodeCard({ station, onUpdated }: { station: Station; onUpdated: () => void }) {
+  const [copied, setCopied] = useState(false);
+  const [regenerating, setRegenerating] = useState(false);
+
+  async function copy() {
+    if (!station.attendantInviteCode) return;
+    await navigator.clipboard.writeText(station.attendantInviteCode);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  }
+
+  async function regenerate() {
+    setRegenerating(true);
+    try {
+      await api.post(`/stations/${station.id}/invite-codes/regenerate`, { type: "ATTENDANT" });
+      onUpdated();
+    } finally {
+      setRegenerating(false);
+    }
+  }
+
+  return (
+    <div className="card section">
+      <h2>Código de convite para frentistas</h2>
+      <p className="subtitle" style={{ marginBottom: "0.6rem" }}>
+        Compartilhe este código com novos funcionários para que eles se cadastrem sozinhos já vinculados ao seu posto.
+      </p>
+      <div style={{ display: "flex", gap: "0.6rem", alignItems: "center" }}>
+        <span className="invite-code">{station.attendantInviteCode}</span>
+        <button className="btn secondary small" onClick={copy}>
+          {copied ? "Copiado!" : "Copiar"}
+        </button>
+        <button className="btn secondary small" onClick={regenerate} disabled={regenerating}>
+          {regenerating ? "Gerando..." : "Gerar novo código"}
+        </button>
+      </div>
+    </div>
+  );
+}
 
 const PERIOD_LABEL: Record<Period, string> = { DAILY: "Diária", WEEKLY: "Semanal", MONTHLY: "Mensal" };
 
@@ -174,12 +214,14 @@ export function ManagerTeam() {
   const [attendants, setAttendants] = useState<Attendant[]>([]);
   const [items, setItems] = useState<Item[]>([]);
   const [goals, setGoals] = useState<Goal[]>([]);
+  const [station, setStation] = useState<Station | null>(null);
 
   function load() {
     api.get<TeamDashboard>("/dashboard/team").then(setTeam);
     api.get<Attendant[]>("/users/team").then(setAttendants);
     api.get<Item[]>("/items").then(setItems);
     api.get<Goal[]>("/goals").then(setGoals);
+    api.get<Station[]>("/stations").then((stations) => setStation(stations[0] ?? null));
   }
 
   useEffect(load, []);
@@ -188,6 +230,8 @@ export function ManagerTeam() {
     <div>
       <h1>Equipe e metas</h1>
       <p className="subtitle">Gerencie o time do seu posto e defina as metas de cada item.</p>
+
+      {station && <InviteCodeCard station={station} onUpdated={load} />}
 
       <div className="card section">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
