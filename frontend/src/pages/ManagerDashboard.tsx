@@ -1,14 +1,17 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api/client";
-import type { ManagerSummary } from "../types";
-import { HighlightCard, ItemBreakdownTable, KpiCard, RedemptionSummaryCards } from "../components/DashboardWidgets";
+import type { AttendantRankingRow, ManagerSummary } from "../types";
+import { ItemBreakdownTable, KpiCard, RedemptionSummaryCards } from "../components/DashboardWidgets";
+import { TeamLeaderboard } from "../components/TeamLeaderboard";
 
 export function ManagerDashboard() {
   const [data, setData] = useState<ManagerSummary | null>(null);
+  const [ranking, setRanking] = useState<AttendantRankingRow[] | null>(null);
 
   useEffect(() => {
     api.get<ManagerSummary>("/dashboard/manager-summary").then(setData);
+    api.get<AttendantRankingRow[]>("/dashboard/station-ranking").then(setRanking);
   }, []);
 
   return (
@@ -34,25 +37,12 @@ export function ManagerDashboard() {
         )}
       </div>
 
-      <div className="grid cols-2 section">
-        <HighlightCard
-          title="🏆 Melhor frentista"
-          name={data?.topAttendant?.name}
-          meta={data?.topAttendant ? `${data.topAttendant.goalsCount} meta(s) · R$ ${data.topAttendant.totalCommission.toFixed(2)}` : undefined}
-          achievement={data?.topAttendant?.avgAchievement}
-          empty="Ainda não há frentistas com metas registradas."
-        />
-        <HighlightCard
-          title="⚠️ Precisa de atenção"
-          name={data?.attendantNeedingAttention?.name}
-          meta={
-            data?.attendantNeedingAttention
-              ? `${data.attendantNeedingAttention.goalsCount} meta(s) · R$ ${data.attendantNeedingAttention.totalCommission.toFixed(2)}`
-              : undefined
-          }
-          achievement={data?.attendantNeedingAttention?.avgAchievement}
-          empty="Cadastre mais frentistas para ver comparativos."
-        />
+      <div className="section">
+        <h2>Equipe</h2>
+        <p className="subtitle" style={{ marginTop: 0 }}>
+          Posição de cada frentista no ranking do posto neste período.
+        </p>
+        {ranking && <TeamLeaderboard rows={ranking} emptyMessage="Nenhum frentista com metas registradas ainda." />}
       </div>
 
       <div className="card section">

@@ -326,17 +326,20 @@ h2 {
 .rank-row.self {
   outline: 2px solid var(--primary);
 }
-.rank-row.gold {
+.rank-row.gold,
+.rank-position.gold {
   background: linear-gradient(135deg, rgba(250, 204, 21, 0.16), rgba(250, 204, 21, 0.04));
   border-color: #facc15;
   box-shadow: 0 0 0 1px rgba(250, 204, 21, 0.35), 0 4px 18px rgba(250, 204, 21, 0.12);
 }
-.rank-row.silver {
+.rank-row.silver,
+.rank-position.silver {
   background: linear-gradient(135deg, rgba(203, 213, 225, 0.18), rgba(203, 213, 225, 0.04));
   border-color: #cbd5e1;
   box-shadow: 0 0 0 1px rgba(203, 213, 225, 0.3), 0 4px 18px rgba(203, 213, 225, 0.1);
 }
-.rank-row.bronze {
+.rank-row.bronze,
+.rank-position.bronze {
   background: linear-gradient(135deg, rgba(217, 119, 6, 0.18), rgba(217, 119, 6, 0.04));
   border-color: #d97706;
   box-shadow: 0 0 0 1px rgba(217, 119, 6, 0.3), 0 4px 18px rgba(217, 119, 6, 0.1);
@@ -542,4 +545,54 @@ h2 {
 }
 .goal-remaining.pending {
   color: var(--text-muted);
+}
+
+/* ---------------------------------------------------------------------- */
+/* Gráfico de barras diário (sem lib externa)                             */
+/* ---------------------------------------------------------------------- */
+
+.bar-chart-wrap {
+  overflow-x: auto;
+}
+.bar-chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.35rem;
+  height: 200px;
+  min-width: 100%;
+  padding-top: 0.5rem;
+}
+.bar-chart-col {
+  flex: 1 0 22px;
+  min-width: 22px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  height: 100%;
+  justify-content: flex-end;
+  cursor: default;
+}
+.bar-chart-bar {
+  width: 100%;
+  max-width: 28px;
+  background: var(--primary);
+  border-radius: 4px 4px 0 0;
+  transition: background 0.15s ease;
+}
+.bar-chart-col:hover .bar-chart-bar {
+  background: var(--primary-dark);
+}
+.bar-chart-label {
+  margin-top: 0.35rem;
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.period-picker {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
 }

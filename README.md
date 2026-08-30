@@ -5,10 +5,13 @@ lubrificantes, palhetas, cheirinho, volume vendido, etc.), com atingimento, comi
 configurável e resgate de comissão, em três visões:
 
 - **Frentista**: dashboard com metas do período, quanto falta para bater cada uma e a comissão já
-  gerada; lança vendas do dia; solicita resgate (diário/semanal/mensal, conforme liberado pelo
-  administrador); acompanha suas medalhas.
+  gerada; posição no ranking do posto em destaque; lança vendas do dia; solicita resgate (diário/
+  semanal/mensal, conforme liberado pelo administrador); acompanha suas medalhas. Pode abrir o detalhe
+  de qualquer item para ver o que fez dia a dia e um gráfico do ritmo de comissão, filtrando por
+  semana, mês ou período personalizado.
 - **Gerente**: dashboard com KPIs do posto (atingimento, comissão, resgates pendentes, comissão por
-  item, melhor frentista / quem precisa de atenção), gestão de equipe e metas, aprovação de resgates.
+  item) e a posição de cada frentista no ranking do posto; gestão de equipe e metas; aprovação de
+  resgates.
 - **Dono / administrador**: dashboard com KPIs de toda a rede (postos, gerentes, frentistas,
   atingimento, comissão, resgates, comissão por item, melhor posto / que precisa de atenção), cadastro
   de postos e itens/comissionamento, gestão de resgates em qualquer posto da rede, e visão executiva
@@ -67,6 +70,13 @@ O primeiro passo do cadastro é escolher o perfil (dono, gerente ou frentista):
 - **Ranking do posto** (frentistas): cada frentista vê sua posição e a dos colegas do mesmo posto,
   ordenado pelo atingimento médio das metas do período. O 1º lugar sempre recebe moldura dourada e
   medalha 🥇, o 2º prata 🥈, o 3º bronze 🥉.
+  - Filtrável por item (botões "Todos os itens" / "Mix Aditivada" / "Lubrificantes" / ...): ao
+    escolher um item, a lista mostra o valor realizado e a meta daquele item específico junto com o
+    percentual de atingimento (ex.: "Realizado: 45 de 40 L — 112.5%"), em vez da média combinada de
+    todos os itens. Frentistas sem meta do item escolhido não aparecem nessa visão.
+  - A própria página inicial do frentista ("Minhas metas") mostra em destaque a posição atual dele no
+    ranking do posto, com a mesma cor de moldura (ouro/prata/bronze) quando aplicável, e quantos pontos
+    de atingimento faltam para alcançar a posição acima.
 - **Ranking da rede** (postos/gerentes): gerente e dono comparam o desempenho do próprio posto com os
   demais postos da rede. As medalhas e molduras só aparecem quando a rede tem **mais de 3 postos**
   cadastrados — abaixo disso é exibida apenas a lista ordenada, sem o efeito visual.
@@ -156,14 +166,15 @@ tela de login, como dono).
 | POST | `/users/attendants` | MANAGER / OWNER |
 | GET | `/users/team` | MANAGER / OWNER |
 | POST/GET/PATCH | `/items` | OWNER cria; todos leem |
-| POST/GET | `/goals` | MANAGER/OWNER criam; todos leem (escopo por papel) |
+| POST/GET | `/goals` | MANAGER/OWNER criam; todos leem (escopo por papel, só metas ativas agora) |
+| GET | `/goals/:id/daily` | ATTENDANT/MANAGER/OWNER (escopo do posto/rede); aceita `?start=&end=` |
 | POST/GET | `/entries` | ATTENDANT lança; MANAGER lança pela equipe |
 | POST/GET/PATCH | `/redemptions` | ATTENDANT solicita; MANAGER/OWNER decidem |
 | GET | `/dashboard/executive` | OWNER |
 | GET | `/dashboard/team` | MANAGER |
 | GET | `/dashboard/owner-summary` | OWNER (KPIs, resgates, comissão por item, destaques) |
 | GET | `/dashboard/manager-summary` | MANAGER (KPIs, resgates, comissão por item, destaques) |
-| GET | `/dashboard/station-ranking` | ATTENDANT/MANAGER (próprio posto) / OWNER (`?stationId=`) |
+| GET | `/dashboard/station-ranking` | ATTENDANT/MANAGER (próprio posto) / OWNER (`?stationId=`); aceita `?itemId=` para ranking de um item específico |
 | GET | `/dashboard/network-ranking` | MANAGER / OWNER |
 | GET | `/dashboard/hall-of-fame` | ATTENDANT / MANAGER / OWNER (mês anterior por padrão, ou `?month=YYYY-MM`) |
 | GET | `/badges` | ATTENDANT (conquistas do próprio frentista) |

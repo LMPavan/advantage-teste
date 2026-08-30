@@ -2,8 +2,20 @@ import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../prisma";
 import { requireAuth, requireRole } from "../middleware/auth";
-import { computeGoalProgress } from "../services/commission.service";
+import { computeDailyCommissionEstimate, computeGoalProgress, round2 } from "../services/commission.service";
 import { currentRange } from "../services/ranking.service";
+
+/** Confere se o usuário autenticado pode ver esta meta (mesmo posto para ATTENDANT/MANAGER, mesma rede para OWNER). */
+async function canAccessGoal(
+  goal: { stationId: string },
+  auth: { role: string; stationId: string | null; networkId: string | null }
+): Promise<boolean> {
+  if (auth.role === "ATTENDANT" || auth.role === "MANAGER") {
+    return goal.stationId === auth.stationId;
+  }
+  const station = await prisma.station.findUnique({ where: { id: goal.stationId }, select: { networkId: true } });
+  return station?.networkId === auth.networkId;
+}
 
 export const goalRouter = Router();
 goalRouter.use(requireAuth);
@@ -108,16 +120,72 @@ goalRouter.get("/:id", async (req, res) => {
     include: { item: true, attendant: { select: { id: true, name: true, email: true } }, station: true, entries: true },
   });
   if (!goal) return res.status(404).json({ error: "Meta não encontrada." });
-
-  const { role, stationId, userId } = req.auth!;
-  if (role === "ATTENDANT" && goal.stationId !== stationId) {
+  if (!(await canAccessGoal(goal, req.auth!))) {
     return res.status(403).json({ error: "Sem acesso a esta meta." });
   }
-  if (role === "MANAGER" && goal.stationId !== stationId) {
-    return res.status(403).json({ error: "Sem acesso a esta meta." });
-  }
-  void userId;
 
   const progress = await computeGoalProgress(goal.id);
   return res.json({ ...goal, progress });
+});
+
+const dailyQuerySchema = z.object({
+  start: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  end: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+});
+
+// Detalhamento dia a dia de uma meta: o que foi lançado em cada dia e uma estimativa de comissão
+// diária (taxa aplicada ao valor do dia, sem o corte de percentual mínimo/teto — esses só valem sobre
+// o período fechado). Por padrão cobre o período inteiro da meta; aceita ?start=&end= (semana, mês
+// customizado etc.) escolhido pelo frentista na tela de detalhe.
+goalRouter.get("/:id/daily", async (req, res) => {
+  const parsedQuery = dailyQuerySchema.safeParse(req.query);
+  if (!parsedQuery.success) {
+    return res.status(400).json({ error: "Parâmetros de data inválidos." });
+  }
+
+  const goal = await prisma.goal.findUnique({
+    where: { id: req.params.id },
+    include: { item: true, entries: true },
+  });
+  if (!goal) return res.status(404).json({ error: "Meta não encontrada." });
+  if (!(await canAccessGoal(goal, req.auth!))) {
+    return res.status(403).json({ error: "Sem acesso a esta meta." });
+  }
+
+  const rangeStart = parsedQuery.data.start ?? goal.startDate.toISOString().slice(0, 10);
+  const rangeEnd = parsedQuery.data.end ?? goal.endDate.toISOString().slice(0, 10);
+  const isMix = goal.item.calculationType === "MIX_RATIO";
+
+  const byDate = new Map<string, { value: number; comumLiters: number; aditivadaLiters: number }>();
+  for (const entry of goal.entries) {
+    const date = entry.date.toISOString().slice(0, 10);
+    if (date < rangeStart || date > rangeEnd) continue;
+    const current = byDate.get(date) ?? { value: 0, comumLiters: 0, aditivadaLiters: 0 };
+    current.value += entry.value ? Number(entry.value) : 0;
+    current.comumLiters += entry.comumLiters ? Number(entry.comumLiters) : 0;
+    current.aditivadaLiters += entry.aditivadaLiters ? Number(entry.aditivadaLiters) : 0;
+    byDate.set(date, current);
+  }
+
+  const days = Array.from(byDate.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, agg]) => ({
+      date,
+      value: isMix ? null : round2(agg.value),
+      comumLiters: isMix ? round2(agg.comumLiters) : null,
+      aditivadaLiters: isMix ? round2(agg.aditivadaLiters) : null,
+      ratio: isMix && agg.aditivadaLiters > 0 ? round2((agg.comumLiters + agg.aditivadaLiters) / agg.aditivadaLiters) : null,
+      estimatedCommission: computeDailyCommissionEstimate(goal.item, agg),
+    }));
+
+  return res.json({
+    goalId: goal.id,
+    itemName: goal.item.name,
+    unit: goal.item.unit,
+    calculationType: goal.item.calculationType,
+    commissionType: goal.item.commissionType,
+    rangeStart,
+    rangeEnd,
+    days,
+  });
 });

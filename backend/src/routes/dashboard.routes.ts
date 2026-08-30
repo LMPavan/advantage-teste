@@ -4,6 +4,7 @@ import { prisma } from "../prisma";
 import { requireAuth, requireRole } from "../middleware/auth";
 import { round2 } from "../services/commission.service";
 import {
+  getAttendantItemRanking,
   getAttendantRanking,
   getNetworkAttendantRanking,
   getStationRanking,
@@ -51,10 +52,13 @@ const monthQuerySchema = z.object({ month: z.string().regex(/^\d{4}-\d{2}$/).opt
 
 // Ranking gamificado dos frentistas do posto (usado por ATTENDANT, MANAGER e OWNER).
 // ATTENDANT/MANAGER usam seu próprio posto; OWNER precisa informar ?stationId=.
+// Com ?itemId=, retorna o ranking de um único item (valor realizado + % de atingimento), em vez da
+// média combinada de todos os itens.
 dashboardRouter.get("/station-ranking", requireRole("ATTENDANT", "MANAGER", "OWNER"), async (req, res) => {
   const { role, stationId: authStationId, networkId } = req.auth!;
   const monthParsed = monthQuerySchema.safeParse(req.query);
   const month = monthParsed.success ? monthParsed.data.month : undefined;
+  const itemId = req.query.itemId as string | undefined;
 
   let targetStationId = authStationId ?? undefined;
   if (role === "OWNER") {
@@ -69,7 +73,18 @@ dashboardRouter.get("/station-ranking", requireRole("ATTENDANT", "MANAGER", "OWN
   }
   if (!targetStationId) return res.json([]);
 
-  const rows = await getAttendantRanking(targetStationId, month ? monthRangeFromParam(month) : undefined);
+  const range = month ? monthRangeFromParam(month) : undefined;
+
+  if (itemId) {
+    const item = await prisma.item.findUnique({ where: { id: itemId } });
+    if (!item || item.networkId !== networkId) {
+      return res.status(400).json({ error: "Item inválido para esta rede." });
+    }
+    const rows = await getAttendantItemRanking(targetStationId, itemId, range);
+    return res.json(rows);
+  }
+
+  const rows = await getAttendantRanking(targetStationId, range);
   return res.json(rows);
 });
 

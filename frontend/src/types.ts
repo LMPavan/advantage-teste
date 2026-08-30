@@ -193,3 +193,36 @@ export interface Badge {
   icon: string;
   achieved: boolean;
 }
+
+export interface ItemAttendantRankingRow {
+  attendantId: string;
+  name: string;
+  photoUrl?: string | null;
+  itemId: string;
+  itemName: string;
+  unit: string;
+  actualValue: number;
+  targetValue: number;
+  achievementPercent: number;
+  commissionAmount: number;
+}
+
+export interface DailyGoalEntry {
+  date: string;
+  value: number | null;
+  comumLiters: number | null;
+  aditivadaLiters: number | null;
+  ratio: number | null;
+  estimatedCommission: number;
+}
+
+export interface DailyGoalDetail {
+  goalId: string;
+  itemName: string;
+  unit: string;
+  calculationType: ItemCalculationType;
+  commissionType: CommissionType;
+  rangeStart: string;
+  rangeEnd: string;
+  days: DailyGoalEntry[];
+}

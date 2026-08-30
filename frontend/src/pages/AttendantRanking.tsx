@@ -1,55 +1,62 @@
 import { useEffect, useState } from "react";
 import { api } from "../api/client";
 import { useAuth } from "../context/AuthContext";
-import type { AttendantRankingRow } from "../types";
-import { Avatar } from "../components/Avatar";
-import { LeaderboardRow, tierForRank } from "../components/Leaderboard";
+import type { AttendantRankingRow, Item, ItemAttendantRankingRow } from "../types";
+import { TeamLeaderboard } from "../components/TeamLeaderboard";
 
 export function AttendantRanking() {
   const { user } = useAuth();
-  const [rows, setRows] = useState<AttendantRankingRow[] | null>(null);
+  const [items, setItems] = useState<Item[]>([]);
+  const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
+  const [combinedRows, setCombinedRows] = useState<AttendantRankingRow[] | null>(null);
+  const [itemRows, setItemRows] = useState<ItemAttendantRankingRow[] | null>(null);
 
   useEffect(() => {
-    api.get<AttendantRankingRow[]>("/dashboard/station-ranking").then(setRows);
+    api.get<Item[]>("/items").then(setItems);
   }, []);
+
+  useEffect(() => {
+    if (selectedItemId) {
+      setItemRows(null);
+      api.get<ItemAttendantRankingRow[]>(`/dashboard/station-ranking?itemId=${selectedItemId}`).then(setItemRows);
+    } else {
+      setCombinedRows(null);
+      api.get<AttendantRankingRow[]>("/dashboard/station-ranking").then(setCombinedRows);
+    }
+  }, [selectedItemId]);
+
+  const rows = selectedItemId ? itemRows : combinedRows;
 
   return (
     <div>
       <h1>Ranking do posto</h1>
       <p className="subtitle">
-        Veja como você está em relação aos demais frentistas do seu posto neste período. O 1º lugar ganha
-        moldura dourada, o 2º prata e o 3º bronze.
+        Veja como você está em relação aos demais frentistas do seu posto. O 1º lugar ganha moldura dourada, o
+        2º prata e o 3º bronze.
       </p>
 
-      {rows?.map((row, index) => {
-        const rank = index + 1;
-        const tier = tierForRank(rank, true);
-        return (
-          <LeaderboardRow key={row.attendantId} rank={rank} tier={tier} highlight={row.attendantId === user?.id}>
-            <div className="rank-identity">
-              <Avatar name={row.name} photoUrl={row.photoUrl} size={40} />
-              <div>
-                <div className="name">
-                  {row.name} {row.attendantId === user?.id && <span className="badge neutral">Você</span>}
-                </div>
-                <div className="meta">{row.goalsCount} metas no período</div>
-              </div>
-            </div>
-            <div className="rank-stats">
-              <div className="rank-stat">
-                <div className="value">{row.avgAchievement.toFixed(1)}%</div>
-                <div className="label">Atingimento</div>
-              </div>
-              <div className="rank-stat">
-                <div className="value">R$ {row.totalCommission.toFixed(2)}</div>
-                <div className="label">Comissão</div>
-              </div>
-            </div>
-          </LeaderboardRow>
-        );
-      })}
+      <div className="role-picker" style={{ flexWrap: "wrap" }}>
+        <button className={selectedItemId === null ? "active" : ""} onClick={() => setSelectedItemId(null)}>
+          Todos os itens
+        </button>
+        {items.map((item) => (
+          <button key={item.id} className={selectedItemId === item.id ? "active" : ""} onClick={() => setSelectedItemId(item.id)}>
+            {item.name}
+          </button>
+        ))}
+      </div>
 
-      {rows && rows.length === 0 && <p>Ainda não há frentistas com metas no seu posto.</p>}
+      {selectedItemId && (
+        <p className="subtitle" style={{ marginTop: 0 }}>
+          Mostrando apenas frentistas com meta deste item no período atual.
+        </p>
+      )}
+
+      {rows ? (
+        <TeamLeaderboard rows={rows} ownId={user?.id} />
+      ) : (
+        <p>Carregando...</p>
+      )}
     </div>
   );
 }

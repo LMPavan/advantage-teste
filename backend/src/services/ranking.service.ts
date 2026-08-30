@@ -90,6 +90,71 @@ export async function getAttendantRanking(stationId: string, range: DateRange = 
   return rows;
 }
 
+export interface ItemAttendantRankingRow {
+  attendantId: string;
+  name: string;
+  photoUrl: string | null;
+  itemId: string;
+  itemName: string;
+  unit: string;
+  actualValue: number;
+  targetValue: number;
+  achievementPercent: number;
+  commissionAmount: number;
+}
+
+/**
+ * Ranking dos frentistas de um posto para UM item específico (ex.: só "Lubrificantes"), mostrando o
+ * valor realizado e o percentual de atingimento de cada um — não apenas a média combinada de todos os
+ * itens. Frentistas sem meta deste item no período não entram na lista.
+ */
+export async function getAttendantItemRanking(
+  stationId: string,
+  itemId: string,
+  range: DateRange = currentRange()
+): Promise<ItemAttendantRankingRow[]> {
+  const attendants = await prisma.user.findMany({
+    where: { role: "ATTENDANT", stationId },
+    select: { id: true, name: true, photoUrl: true },
+  });
+  if (attendants.length === 0) return [];
+
+  const goals = await prisma.goal.findMany({
+    where: {
+      stationId,
+      itemId,
+      attendantId: { in: attendants.map((a) => a.id) },
+      startDate: { lte: range.end },
+      endDate: { gte: range.start },
+    },
+    include: { item: true },
+  });
+
+  const rows: ItemAttendantRankingRow[] = [];
+  for (const attendant of attendants) {
+    // Assume no máximo uma meta ativa deste item por frentista no período (o fluxo normal do app
+    // não cria mais de uma meta concorrente do mesmo item/período para o mesmo frentista).
+    const goal = goals.find((g) => g.attendantId === attendant.id);
+    if (!goal) continue;
+    const progress = await computeGoalProgress(goal.id);
+    rows.push({
+      attendantId: attendant.id,
+      name: attendant.name,
+      photoUrl: attendant.photoUrl,
+      itemId: goal.itemId,
+      itemName: goal.item.name,
+      unit: goal.item.unit,
+      actualValue: progress.actualValue,
+      targetValue: progress.targetValue,
+      achievementPercent: progress.achievementPercent,
+      commissionAmount: progress.commissionAmount,
+    });
+  }
+
+  rows.sort((a, b) => b.achievementPercent - a.achievementPercent);
+  return rows;
+}
+
 /** Ranking de frentistas em toda a rede (usado no mural / hall da fama). */
 export async function getNetworkAttendantRanking(networkId: string, range: DateRange = currentRange()): Promise<AttendantRankingRow[]> {
   const stations = await prisma.station.findMany({ where: { networkId }, select: { id: true } });

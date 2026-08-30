@@ -110,6 +110,37 @@ export function round2(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
+/**
+ * Estimativa de comissão de um único lançamento (dia), aplicando apenas a taxa por unidade do item —
+ * SEM considerar o percentual mínimo (threshold) nem o teto do modo proporcional, já que esses dois só
+ * fazem sentido sobre o total do período fechado. Serve como indicador de ritmo diário ("quanto esse
+ * dia valeria, mantido o ritmo"), não como o valor definitivo já garantido — a comissão real só é
+ * conhecida ao final do período, no card da meta.
+ */
+export function computeDailyCommissionEstimate(
+  item: Pick<Item, "calculationType" | "commissionType" | "commissionValue">,
+  entry: { value: any; comumLiters: any; aditivadaLiters: any }
+): number {
+  const rate = Number(item.commissionValue);
+  const value = entry.value ? Number(entry.value) : 0;
+  const aditivadaLiters = entry.aditivadaLiters ? Number(entry.aditivadaLiters) : 0;
+
+  switch (item.commissionType) {
+    case CommissionType.CENTS_PER_LITER: {
+      const liters = item.calculationType === "MIX_RATIO" ? aditivadaLiters : value;
+      return round2(liters * (rate / 100));
+    }
+    case CommissionType.CURRENCY_PER_LITER:
+    case CommissionType.CURRENCY_PER_UNIT:
+      return round2(value * rate);
+    case CommissionType.PERCENTAGE_OF_VALUE:
+      return round2(value * (rate / 100));
+    case CommissionType.FIXED_PER_PERIOD:
+    default:
+      return 0; // não decompõe por dia: só existe ao fechar o período.
+  }
+}
+
 /** Calcula o progresso completo de uma meta (usa os lançamentos já filtrados pelo período desejado). */
 export async function computeGoalProgress(goalId: string): Promise<GoalProgress> {
   const goal = await prisma.goal.findUniqueOrThrow({

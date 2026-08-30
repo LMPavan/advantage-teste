@@ -3,6 +3,7 @@ import { useAuth } from "./context/AuthContext";
 import { LoginPage } from "./pages/Login";
 import { Shell } from "./components/Shell";
 import { AttendantGoals } from "./pages/AttendantGoals";
+import { AttendantGoalDetail } from "./pages/AttendantGoalDetail";
 import { AttendantRedemptions } from "./pages/AttendantRedemptions";
 import { AttendantRanking } from "./pages/AttendantRanking";
 import { AttendantBadges } from "./pages/AttendantBadges";
@@ -47,6 +48,14 @@ export default function App() {
         element={
           <Protected roles={["ATTENDANT"]}>
             <AttendantGoals />
+          </Protected>
+        }
+      />
+      <Route
+        path="/attendant/goals/:goalId"
+        element={
+          <Protected roles={["ATTENDANT"]}>
+            <AttendantGoalDetail />
           </Protected>
         }
       />

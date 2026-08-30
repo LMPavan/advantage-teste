@@ -1,9 +1,12 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, ApiError } from "../api/client";
-import type { Badge, Goal } from "../types";
+import { useAuth } from "../context/AuthContext";
+import type { AttendantRankingRow, Badge, Goal } from "../types";
 import { AchievementBadge, ProgressBar } from "../components/ProgressBar";
 import { BadgeShelf } from "../components/BadgeGrid";
+import { Medal, tierForRank } from "../components/Leaderboard";
+import { Avatar } from "../components/Avatar";
 
 const PERIOD_LABEL: Record<string, string> = { DAILY: "Diária", WEEKLY: "Semanal", MONTHLY: "Mensal" };
 
@@ -16,6 +19,40 @@ function remainingMessage(goal: Goal): { text: string; done: boolean } {
   }
   const diff = Math.round((targetValue - actualValue) * 100) / 100;
   return { text: `Faltam ${diff} ${goal.item.unit} para bater a meta`, done: false };
+}
+
+function RankPositionCard({ rows, ownId }: { rows: AttendantRankingRow[]; ownId: string }) {
+  const index = rows.findIndex((r) => r.attendantId === ownId);
+  if (index === -1) return null;
+  const rank = index + 1;
+  const tier = tierForRank(rank, true);
+  const own = rows[index];
+  const ahead = rank > 1 ? rows[index - 1] : null;
+  const gapToNext = ahead ? Math.max(0, Math.round((ahead.avgAchievement - own.avgAchievement) * 10) / 10) : 0;
+
+  return (
+    <div className={`card section rank-position ${tier ?? ""}`}>
+      <div style={{ display: "flex", alignItems: "center", gap: "1rem", flexWrap: "wrap" }}>
+        <Avatar name={own.name} photoUrl={own.photoUrl} size={48} />
+        <div style={{ flex: 1, minWidth: 200 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+            {tier ? <Medal tier={tier} /> : <span className="rank-plain">{rank}º</span>}
+            <strong>
+              Você está em {rank}º lugar no posto{tier ? "! 🎉" : ""}
+            </strong>
+          </div>
+          <p className="subtitle" style={{ margin: "0.2rem 0 0" }}>
+            {rank === 1
+              ? "Você está na liderança — continue assim para manter a posição!"
+              : `Faltam ${gapToNext} pontos de atingimento médio para alcançar o ${rank - 1}º lugar.`}
+          </p>
+        </div>
+        <Link to="/attendant/ranking" className="btn secondary small">
+          Ver ranking completo →
+        </Link>
+      </div>
+    </div>
+  );
 }
 
 function EntryForm({ goal, onSaved }: { goal: Goal; onSaved: () => void }) {
@@ -94,8 +131,10 @@ function EntryForm({ goal, onSaved }: { goal: Goal; onSaved: () => void }) {
 }
 
 export function AttendantGoals() {
+  const { user } = useAuth();
   const [goals, setGoals] = useState<Goal[] | null>(null);
   const [badges, setBadges] = useState<Badge[] | null>(null);
+  const [ranking, setRanking] = useState<AttendantRankingRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   function load() {
@@ -104,6 +143,7 @@ export function AttendantGoals() {
       .then(setGoals)
       .catch((err) => setError(err instanceof ApiError ? err.message : "Erro ao carregar metas."));
     api.get<Badge[]>("/badges").then(setBadges);
+    api.get<AttendantRankingRow[]>("/dashboard/station-ranking").then(setRanking);
   }
 
   useEffect(load, []);
@@ -128,6 +168,8 @@ export function AttendantGoals() {
           <span className="label">Metas batidas no período</span>
         </div>
       </div>
+
+      {ranking && user && <RankPositionCard rows={ranking} ownId={user.id} />}
 
       {badges && (
         <div className="card section" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "0.6rem" }}>
@@ -169,7 +211,12 @@ export function AttendantGoals() {
                 Comissão gerada: <strong>R$ {goal.progress.commissionAmount.toFixed(2)}</strong>
               </p>
 
-              <EntryForm goal={goal} onSaved={load} />
+              <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+                <EntryForm goal={goal} onSaved={load} />
+                <Link to={`/attendant/goals/${goal.id}`} className="btn secondary small">
+                  Ver detalhes diários →
+                </Link>
+              </div>
             </div>
           );
         })}
