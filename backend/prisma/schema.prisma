@@ -1,0 +1,209 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum Role {
+  OWNER // dono da rede/posto - visão executiva, cadastra postos, itens e comissionamento
+  MANAGER // gerente de posto - gestão de equipe e metas
+  ATTENDANT // frentista - acompanha metas, atingimento, comissão e resgates
+}
+
+enum Period {
+  DAILY
+  WEEKLY
+  MONTHLY
+}
+
+// Como o valor realizado de um item é calculado a partir dos lançamentos
+enum ItemCalculationType {
+  SIMPLE // valor lançado diretamente (litros, unidades, R$)
+  MIX_RATIO // (comum + aditivada) / aditivada, a partir de dois volumes lançados
+}
+
+// Direção do atingimento: se maior valor é melhor, ou se menor valor é melhor (ex.: mix)
+enum GoalDirection {
+  HIGHER_IS_BETTER
+  LOWER_IS_BETTER
+}
+
+enum CommissionType {
+  CENTS_PER_LITER // centavos por litro (ex.: mix de aditivada)
+  CURRENCY_PER_LITER // R$ por litro (ex.: lubrificantes)
+  CURRENCY_PER_UNIT // R$ por unidade (ex.: palhetas, cheirinho)
+  PERCENTAGE_OF_VALUE // % sobre o valor vendido
+  FIXED_PER_PERIOD // valor fixo ao atingir a meta no período
+}
+
+// Como o atingimento parcial afeta o pagamento da comissão
+enum PayoutMode {
+  THRESHOLD // só paga (o valor cheio) se atingir o percentual mínimo configurado
+  PROPORTIONAL // paga proporcional ao percentual de atingimento (limitado a 100%)
+}
+
+enum RedemptionStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  PAID
+}
+
+// ---------------------------------------------------------------------------
+// Estrutura organizacional
+// ---------------------------------------------------------------------------
+
+model Network {
+  id        String   @id @default(cuid())
+  name      String
+  ownerId   String   @unique
+  owner     User     @relation("NetworkOwner", fields: [ownerId], references: [id])
+  createdAt DateTime @default(now())
+
+  stations Station[]
+  items    Item[]
+}
+
+model Station {
+  id        String   @id @default(cuid())
+  name      String
+  code      String
+  address   String?
+  networkId String
+  network   Network  @relation(fields: [networkId], references: [id])
+  managerId String?  @unique
+  manager   User?    @relation("StationManager", fields: [managerId], references: [id])
+  createdAt DateTime @default(now())
+
+  attendants       User[]            @relation("StationAttendants")
+  goals            Goal[]
+  redemptionPolicy RedemptionPolicy?
+  redemptions      Redemption[]
+
+  @@unique([networkId, code])
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         Role
+  createdAt    DateTime @default(now())
+
+  // OWNER: dono da rede (relação inversa de Network.owner)
+  ownedNetwork Network? @relation("NetworkOwner")
+
+  // MANAGER: gerencia um único posto (relação inversa de Station.manager)
+  managedStation Station? @relation("StationManager")
+
+  // ATTENDANT: pertence a um posto
+  stationId String?
+  station   Station? @relation("StationAttendants", fields: [stationId], references: [id])
+
+  goalsCreated     Goal[]       @relation("GoalCreatedBy")
+  goalsAsAttendant Goal[]       @relation("GoalAttendant")
+  entries          Entry[]
+  redemptions      Redemption[] @relation("RedemptionAttendant")
+  decisions        Redemption[] @relation("RedemptionDecidedBy")
+}
+
+// ---------------------------------------------------------------------------
+// Itens de meta e regras de comissionamento (configurados pelo admin/dono)
+// ---------------------------------------------------------------------------
+
+model Item {
+  id                        String              @id @default(cuid())
+  networkId                 String
+  network                   Network             @relation(fields: [networkId], references: [id])
+  name                      String
+  description               String?
+  unit                      String // "L", "un", "R$" etc.
+  calculationType           ItemCalculationType @default(SIMPLE)
+  direction                 GoalDirection       @default(HIGHER_IS_BETTER)
+  commissionType            CommissionType
+  commissionValue           Decimal             @db.Decimal(10, 4) // ex.: centavos/litro, R$/litro, R$/unidade, % ou valor fixo
+  payoutMode                PayoutMode          @default(PROPORTIONAL)
+  achievementThresholdPercent Decimal           @default(100) @db.Decimal(5, 2)
+  active                    Boolean             @default(true)
+  createdAt                 DateTime            @default(now())
+
+  goals Goal[]
+}
+
+// ---------------------------------------------------------------------------
+// Metas, lançamentos e resgates
+// ---------------------------------------------------------------------------
+
+model Goal {
+  id          String   @id @default(cuid())
+  stationId   String
+  station     Station  @relation(fields: [stationId], references: [id])
+  itemId      String
+  item        Item     @relation(fields: [itemId], references: [id])
+  attendantId String? // null = meta coletiva do posto
+  attendant   User?    @relation("GoalAttendant", fields: [attendantId], references: [id])
+  period      Period
+  targetValue Decimal  @db.Decimal(12, 4)
+  startDate   DateTime
+  endDate     DateTime
+  createdById String
+  createdBy   User     @relation("GoalCreatedBy", fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+
+  entries Entry[]
+
+  @@index([stationId, itemId, attendantId])
+}
+
+model Entry {
+  id            String   @id @default(cuid())
+  goalId        String
+  goal          Goal     @relation(fields: [goalId], references: [id])
+  attendantId   String
+  attendant     User     @relation(fields: [attendantId], references: [id])
+  date          DateTime @db.Date
+  value         Decimal? @db.Decimal(12, 4) // usado quando o item é SIMPLE
+  comumLiters   Decimal? @db.Decimal(12, 4) // usado quando o item é MIX_RATIO
+  aditivadaLiters Decimal? @db.Decimal(12, 4) // usado quando o item é MIX_RATIO
+  createdAt     DateTime @default(now())
+
+  @@index([goalId, date])
+}
+
+model RedemptionPolicy {
+  id           String   @id @default(cuid())
+  stationId    String   @unique
+  station      Station  @relation(fields: [stationId], references: [id])
+  allowDaily   Boolean  @default(false)
+  allowWeekly  Boolean  @default(true)
+  allowMonthly Boolean  @default(true)
+  updatedAt    DateTime @updatedAt
+}
+
+model Redemption {
+  id               String            @id @default(cuid())
+  attendantId      String
+  attendant        User              @relation("RedemptionAttendant", fields: [attendantId], references: [id])
+  stationId        String
+  station          Station           @relation(fields: [stationId], references: [id])
+  period           Period
+  periodStart      DateTime @db.Date
+  periodEnd        DateTime @db.Date
+  commissionAmount Decimal           @db.Decimal(12, 2)
+  status           RedemptionStatus  @default(PENDING)
+  requestedAt      DateTime          @default(now())
+  decidedById      String?
+  decidedBy        User?             @relation("RedemptionDecidedBy", fields: [decidedById], references: [id])
+  decidedAt        DateTime?
+  notes            String?
+
+  @@index([attendantId, status])
+}
