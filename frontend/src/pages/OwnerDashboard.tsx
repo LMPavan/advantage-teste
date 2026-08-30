@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { api } from "../api/client";
 import type { OwnerSummary } from "../types";
 import { HighlightCard, ItemBreakdownTable, KpiCard, RedemptionSummaryCards } from "../components/DashboardWidgets";
+import { UnreadMessagesPopup } from "../components/UnreadMessagesPopup";
 
 export function OwnerDashboard() {
   const [data, setData] = useState<OwnerSummary | null>(null);
@@ -13,6 +14,7 @@ export function OwnerDashboard() {
 
   return (
     <div>
+      <UnreadMessagesPopup />
       <h1>Dashboard</h1>
       <p className="subtitle">Panorama geral da rede neste período.</p>
 

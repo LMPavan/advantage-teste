@@ -30,6 +30,7 @@ export interface Item {
   direction: GoalDirection;
   commissionType: CommissionType;
   commissionValue: string;
+  linkedToGoal: boolean;
   payoutMode: PayoutMode;
   achievementThresholdPercent: string;
   active: boolean;
@@ -77,6 +78,10 @@ export interface Station {
   // Ausentes na resposta para o papel ATTENDANT (não precisam desses códigos).
   managerInviteCode?: string;
   attendantInviteCode?: string;
+  managerCanManageGoals: boolean;
+  managerCanManageTeam: boolean;
+  managerCanManageRedemptionPolicy: boolean;
+  managerCanRegenerateInviteCode: boolean;
 }
 
 export interface Attendant {
@@ -192,6 +197,28 @@ export interface Badge {
   description: string;
   icon: string;
   achieved: boolean;
+}
+
+export type MessageTargetType = "USER" | "STATION_TEAM" | "NETWORK_MANAGERS" | "NETWORK_ATTENDANTS" | "NETWORK_ALL";
+
+export interface Message {
+  id: string;
+  body: string;
+  audienceLabel: string;
+  createdAt: string;
+  sender: { id: string; name: string; role: Role; photoUrl?: string | null };
+  readAt: string | null;
+}
+
+export interface MessageRecipientOption {
+  id: string;
+  name: string;
+  role: Role;
+}
+
+export interface MessageRecipientsResponse {
+  users: MessageRecipientOption[];
+  stations: { id: string; name: string }[];
 }
 
 export interface ItemAttendantRankingRow {

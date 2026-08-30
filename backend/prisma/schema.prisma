@@ -69,6 +69,7 @@ model Network {
 
   stations Station[]
   items    Item[]
+  messages Message[]
 }
 
 model Station {
@@ -86,6 +87,13 @@ model Station {
   // que o funcionário se auto-cadastre já vinculado a este posto.
   managerInviteCode    String @unique
   attendantInviteCode  String @unique
+
+  // Permissões que o dono da rede libera (ou não) para o gerente deste posto. OWNER sempre pode
+  // tudo, independente destas flags — elas só restringem o papel MANAGER.
+  managerCanManageGoals             Boolean @default(true)
+  managerCanManageTeam              Boolean @default(true)
+  managerCanManageRedemptionPolicy  Boolean @default(true)
+  managerCanRegenerateInviteCode    Boolean @default(true)
 
   attendants       User[]            @relation("StationAttendants")
   goals            Goal[]
@@ -119,6 +127,9 @@ model User {
   entries          Entry[]
   redemptions      Redemption[] @relation("RedemptionAttendant")
   decisions        Redemption[] @relation("RedemptionDecidedBy")
+
+  messagesSent     Message[]          @relation("MessageSender")
+  messagesReceived MessageRecipient[]
 }
 
 // ---------------------------------------------------------------------------
@@ -136,6 +147,12 @@ model Item {
   direction                 GoalDirection       @default(HIGHER_IS_BETTER)
   commissionType            CommissionType
   commissionValue           Decimal             @db.Decimal(10, 4) // ex.: centavos/litro, R$/litro, R$/unidade, % ou valor fixo
+  // Se true (padrão): a comissão só é paga conforme o atingimento da meta (payoutMode/threshold
+  // abaixo). Se false: a comissão é paga integralmente por unidade vendida, sem nenhuma condição de
+  // bater a meta — ex.: 3 centavos por litro de aditivada vendido, pago sempre. Nesse caso
+  // payoutMode/achievementThresholdPercent são ignorados; a meta continua existindo só para
+  // acompanhamento/gamificação.
+  linkedToGoal              Boolean             @default(true)
   payoutMode                PayoutMode          @default(PROPORTIONAL)
   achievementThresholdPercent Decimal           @default(100) @db.Decimal(5, 2)
   active                    Boolean             @default(true)
@@ -212,4 +229,35 @@ model Redemption {
   notes            String?
 
   @@index([attendantId, status])
+}
+
+// ---------------------------------------------------------------------------
+// Mensagens (dono → gerentes/frentistas, gerente → sua equipe)
+// ---------------------------------------------------------------------------
+
+model Message {
+  id            String   @id @default(cuid())
+  senderId      String
+  sender        User     @relation("MessageSender", fields: [senderId], references: [id])
+  networkId     String
+  network       Network  @relation(fields: [networkId], references: [id])
+  audienceLabel String // texto amigável para exibição, ex.: "Equipe do Posto Central", "Toda a rede"
+  body          String   @db.Text
+  createdAt     DateTime @default(now())
+
+  recipients MessageRecipient[]
+}
+
+// Uma linha por destinatário efetivo (resolvida no envio) — permite mensagens diretas e em massa
+// (equipe do posto, todos os gerentes, toda a rede) com o mesmo controle de lida/não lida por pessoa.
+model MessageRecipient {
+  id        String    @id @default(cuid())
+  messageId String
+  message   Message   @relation(fields: [messageId], references: [id])
+  userId    String
+  user      User      @relation(fields: [userId], references: [id])
+  readAt    DateTime?
+
+  @@unique([messageId, userId])
+  @@index([userId, readAt])
 }

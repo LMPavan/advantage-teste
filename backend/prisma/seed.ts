@@ -24,6 +24,8 @@ function daysAgo(n: number) {
 
 async function main() {
   console.log("Limpando dados existentes...");
+  await prisma.messageRecipient.deleteMany();
+  await prisma.message.deleteMany();
   await prisma.redemption.deleteMany();
   await prisma.entry.deleteMany();
   await prisma.goal.deleteMany();
@@ -108,6 +110,22 @@ async function main() {
       commissionValue: 0.5,
       payoutMode: "PROPORTIONAL",
       achievementThresholdPercent: 90,
+    },
+  });
+  // Exemplo de comissão desvinculada da meta: paga sempre por litro de aditivada, mesmo sem bater a meta.
+  const bonusItem = await prisma.item.create({
+    data: {
+      networkId: network.id,
+      name: "Bônus Aditivada",
+      description: "Comissão paga por litro vendido de aditivada, independente de bater a meta.",
+      unit: "L",
+      calculationType: "SIMPLE",
+      direction: "HIGHER_IS_BETTER",
+      commissionType: "CENTS_PER_LITER",
+      commissionValue: 3,
+      linkedToGoal: false,
+      payoutMode: "PROPORTIONAL",
+      achievementThresholdPercent: 100,
     },
   });
 
@@ -216,6 +234,10 @@ async function main() {
   await fillSimpleGoal(volumeItem.id, central.id, attendant1.id, manager.id, 12000, 1.25, prevStart, prevEnd, daysInPrevMonth);
   await fillSimpleGoal(volumeItem.id, central.id, attendant2.id, manager.id, 12000, 0.8, prevStart, prevEnd, daysInPrevMonth);
 
+  // Bônus Aditivada: mesmo abaixo da meta informativa (70%), a comissão é paga em cheio por litro.
+  await fillSimpleGoal(bonusItem.id, central.id, attendant1.id, manager.id, 500, 0.7, currentStart, currentEnd, 10);
+  await fillSimpleGoal(bonusItem.id, central.id, attendant2.id, manager.id, 500, 0.7, currentStart, currentEnd, 10);
+
   // -------------------------------------------------------------------------
   // Demais postos da rede: dataset enxuto (2 itens), só para alimentar os
   // rankings de posto/gerente e o mural com mais de 3 postos cadastrados.
@@ -288,7 +310,38 @@ async function main() {
     await fillSimpleGoal(lubItem.id, station.id, stationAttendant.id, stationManager.id, 30, s.currentFraction, currentStart, currentEnd, currentDays);
 
     await fillSimpleGoal(volumeItem.id, station.id, stationAttendant.id, stationManager.id, 10000, s.prevFraction, prevStart, prevEnd, daysInPrevMonth);
+
+    // Posto Leste: exemplo de posto com permissões restritas — o dono não liberou o cadastro de
+    // metas nem de frentistas para este gerente, para demonstrar o painel de permissões.
+    if (s.code === "PL04") {
+      await prisma.station.update({
+        where: { id: station.id },
+        data: { managerCanManageGoals: false, managerCanManageTeam: false },
+      });
+    }
   }
+
+  console.log("Criando mensagens de exemplo...");
+  await prisma.message.create({
+    data: {
+      senderId: owner.id,
+      networkId: network.id,
+      audienceLabel: "Toda a rede",
+      body: "Bem-vindos ao novo sistema de metas! Boas vendas a todos. 🚀",
+      recipients: {
+        create: [manager.id, attendant1.id, attendant2.id].map((userId) => ({ userId })),
+      },
+    },
+  });
+  await prisma.message.create({
+    data: {
+      senderId: manager.id,
+      networkId: network.id,
+      audienceLabel: `Direto para ${attendant1.name}`,
+      body: "Fábio, parabéns pelo mês passado! Continue assim.",
+      recipients: { create: [{ userId: attendant1.id }] },
+    },
+  });
 
   console.log("\nSeed concluído! Usuários de teste (senha: senha123):");
   console.log("  Dono:               dono@example.com");

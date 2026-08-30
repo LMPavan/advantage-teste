@@ -17,6 +17,7 @@ import { OwnerStations } from "./pages/OwnerStations";
 import { OwnerItems } from "./pages/OwnerItems";
 import { OwnerRedemptions } from "./pages/OwnerRedemptions";
 import { HallOfFame } from "./pages/HallOfFame";
+import { MessagesPage } from "./pages/Messages";
 import type { Role } from "./types";
 
 function HomeRedirect() {
@@ -91,6 +92,14 @@ export default function App() {
           </Protected>
         }
       />
+      <Route
+        path="/attendant/messages"
+        element={
+          <Protected roles={["ATTENDANT"]}>
+            <MessagesPage />
+          </Protected>
+        }
+      />
 
       <Route
         path="/manager"
@@ -129,6 +138,14 @@ export default function App() {
         element={
           <Protected roles={["MANAGER"]}>
             <HallOfFame />
+          </Protected>
+        }
+      />
+      <Route
+        path="/manager/messages"
+        element={
+          <Protected roles={["MANAGER"]}>
+            <MessagesPage />
           </Protected>
         }
       />
@@ -178,6 +195,14 @@ export default function App() {
         element={
           <Protected roles={["OWNER"]}>
             <HallOfFame />
+          </Protected>
+        }
+      />
+      <Route
+        path="/owner/messages"
+        element={
+          <Protected roles={["OWNER"]}>
+            <MessagesPage />
           </Protected>
         }
       />

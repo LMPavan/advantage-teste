@@ -61,11 +61,14 @@ export function computeAchievementPercent(
 }
 
 /**
- * Comissão gerada com base no tipo de comissionamento configurado pelo admin no item,
- * no valor realizado e no percentual de atingimento (payout threshold ou proporcional).
+ * Comissão gerada com base no tipo de comissionamento configurado pelo admin no item, no valor
+ * realizado e no percentual de atingimento (payout threshold ou proporcional) — só quando o item
+ * está vinculado à meta (linkedToGoal). Quando não está, a comissão é paga integralmente por
+ * unidade vendida, sem nenhuma condição de bater a meta (ex.: 3 centavos por litro de aditivada,
+ * pago sempre) — payoutMode/achievementThresholdPercent são ignorados nesse caso.
  */
 export function computeCommission(
-  item: Pick<Item, "commissionType" | "commissionValue" | "payoutMode" | "achievementThresholdPercent">,
+  item: Pick<Item, "commissionType" | "commissionValue" | "payoutMode" | "achievementThresholdPercent" | "linkedToGoal">,
   agg: EntryAggregate,
   actualValue: number,
   achievementPercent: number
@@ -91,10 +94,14 @@ export function computeCommission(
       baseCommission = actualValue * (rate / 100);
       break;
     case CommissionType.FIXED_PER_PERIOD:
-      baseCommission = achievementPercent >= threshold ? rate : 0;
-      return round2(baseCommission);
+      if (!item.linkedToGoal) return round2(rate); // pago sempre, sem condição de meta
+      return round2(achievementPercent >= threshold ? rate : 0);
     default:
       baseCommission = 0;
+  }
+
+  if (!item.linkedToGoal) {
+    return round2(baseCommission);
   }
 
   if (item.payoutMode === PayoutMode.THRESHOLD) {

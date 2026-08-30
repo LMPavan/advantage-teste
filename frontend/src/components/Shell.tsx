@@ -1,6 +1,7 @@
 import { NavLink } from "react-router-dom";
 import type { ReactNode } from "react";
 import { useAuth } from "../context/AuthContext";
+import { useMessages } from "../context/MessagesContext";
 import { Avatar } from "./Avatar";
 
 const ROLE_LABEL: Record<string, string> = {
@@ -9,9 +10,10 @@ const ROLE_LABEL: Record<string, string> = {
   ATTENDANT: "Frentista",
 };
 
-const NAV_BY_ROLE: Record<string, { to: string; label: string; end?: boolean }[]> = {
+const NAV_BY_ROLE: Record<string, { to: string; label: string; end?: boolean; badge?: boolean }[]> = {
   OWNER: [
     { to: "/owner", label: "Dashboard", end: true },
+    { to: "/owner/messages", label: "✉️ Mensagens", badge: true },
     { to: "/owner/ranking", label: "Ranking executivo" },
     { to: "/owner/stations", label: "Postos" },
     { to: "/owner/items", label: "Itens e comissionamento" },
@@ -20,6 +22,7 @@ const NAV_BY_ROLE: Record<string, { to: string; label: string; end?: boolean }[]
   ],
   MANAGER: [
     { to: "/manager", label: "Dashboard", end: true },
+    { to: "/manager/messages", label: "✉️ Mensagens", badge: true },
     { to: "/manager/team", label: "Equipe e metas" },
     { to: "/manager/redemptions", label: "Resgates" },
     { to: "/manager/ranking", label: "🏆 Ranking da rede" },
@@ -27,6 +30,7 @@ const NAV_BY_ROLE: Record<string, { to: string; label: string; end?: boolean }[]
   ],
   ATTENDANT: [
     { to: "/attendant", label: "Minhas metas", end: true },
+    { to: "/attendant/messages", label: "✉️ Mensagens", badge: true },
     { to: "/attendant/redemptions", label: "Resgates" },
     { to: "/attendant/ranking", label: "🏆 Ranking do posto" },
     { to: "/attendant/badges", label: "🎖️ Conquistas" },
@@ -36,6 +40,8 @@ const NAV_BY_ROLE: Record<string, { to: string; label: string; end?: boolean }[]
 
 export function Shell({ children }: { children: ReactNode }) {
   const { user, logout } = useAuth();
+  const { unreadCount } = useMessages();
+
   if (!user) return null;
   const items = NAV_BY_ROLE[user.role] ?? [];
 
@@ -52,6 +58,7 @@ export function Shell({ children }: { children: ReactNode }) {
               className={({ isActive }) => (isActive ? "active" : "")}
             >
               {item.label}
+              {item.badge && unreadCount > 0 && <span className="nav-badge">{unreadCount}</span>}
             </NavLink>
           ))}
         </nav>

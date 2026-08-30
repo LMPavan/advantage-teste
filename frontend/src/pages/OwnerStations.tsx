@@ -169,6 +169,90 @@ function InviteCodesCell({ station, onUpdated }: { station: Station; onUpdated: 
   );
 }
 
+const PERMISSION_FIELDS: { key: keyof Station & string; label: string; hint: string }[] = [
+  { key: "managerCanManageGoals", label: "Cadastrar/editar metas e valores", hint: "Criar metas e definir os valores-alvo de cada item." },
+  { key: "managerCanManageTeam", label: "Cadastrar frentistas", hint: "Criar novos frentistas para o posto." },
+  { key: "managerCanManageRedemptionPolicy", label: "Definir periodicidade de resgate", hint: "Liberar resgate diário/semanal/mensal." },
+  { key: "managerCanRegenerateInviteCode", label: "Regenerar código de frentista", hint: "Gerar um novo código de convite para frentistas." },
+];
+
+function ManagerPermissionsEditor({ station, onUpdated }: { station: Station; onUpdated: () => void }) {
+  const [saving, setSaving] = useState<string | null>(null);
+
+  async function toggle(field: string) {
+    setSaving(field);
+    try {
+      await api.patch(`/stations/${station.id}/permissions`, { [field]: !station[field as keyof Station] });
+      onUpdated();
+    } finally {
+      setSaving(null);
+    }
+  }
+
+  return (
+    <div className="grid cols-2">
+      {PERMISSION_FIELDS.map((f) => (
+        <label key={f.key} style={{ display: "flex", gap: "0.5rem", alignItems: "start", fontSize: "0.85rem" }}>
+          <input
+            type="checkbox"
+            checked={!!station[f.key]}
+            disabled={saving === f.key}
+            onChange={() => toggle(f.key)}
+            style={{ marginTop: "0.2rem" }}
+          />
+          <span>
+            <div>{f.label}</div>
+            <div style={{ color: "var(--text-muted)", fontSize: "0.78rem" }}>{f.hint}</div>
+          </span>
+        </label>
+      ))}
+    </div>
+  );
+}
+
+function StationRow({ station, onUpdated }: { station: Station; onUpdated: () => void }) {
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <>
+      <tr>
+        <td>{station.name}</td>
+        <td>{station.code}</td>
+        <td>{station.manager?.name ?? "—"}</td>
+        <td>{station._count?.attendants ?? 0}</td>
+        <td>
+          <button className="btn secondary small" onClick={() => setExpanded((v) => !v)}>
+            {expanded ? "Ocultar detalhes ▴" : "Gerenciar ▾"}
+          </button>
+        </td>
+      </tr>
+      {expanded && (
+        <tr>
+          <td colSpan={5}>
+            <div className="grid cols-2" style={{ padding: "0.8rem 0" }}>
+              <div className="card">
+                <h2 style={{ marginBottom: "0.5rem" }}>Códigos de convite</h2>
+                <InviteCodesCell station={station} onUpdated={onUpdated} />
+              </div>
+              <div className="card">
+                <h2 style={{ marginBottom: "0.5rem" }}>Resgates liberados</h2>
+                <PolicyEditor station={station} onUpdated={onUpdated} />
+              </div>
+              <div className="card" style={{ gridColumn: "1 / -1" }}>
+                <h2 style={{ marginBottom: "0.2rem" }}>Permissões do gerente</h2>
+                <p className="subtitle" style={{ marginTop: 0 }}>
+                  O que o gerente deste posto pode cadastrar e editar. O dono sempre pode tudo, independente destas opções.
+                </p>
+                <ManagerPermissionsEditor station={station} onUpdated={onUpdated} />
+              </div>
+            </div>
+          </td>
+        </tr>
+      )}
+    </>
+  );
+}
+
 export function OwnerStations() {
   const [stations, setStations] = useState<Station[]>([]);
 
@@ -180,7 +264,9 @@ export function OwnerStations() {
   return (
     <div>
       <h1>Postos</h1>
-      <p className="subtitle">Cadastre postos da rede e defina quais periodicidades de resgate ficam liberadas em cada um.</p>
+      <p className="subtitle">
+        Cadastre postos da rede e gerencie códigos de convite, resgates e permissões de cada gerente.
+      </p>
 
       <div className="card section">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -194,24 +280,12 @@ export function OwnerStations() {
               <th>Código</th>
               <th>Gerente</th>
               <th>Frentistas</th>
-              <th>Códigos de convite</th>
-              <th>Resgates liberados</th>
+              <th></th>
             </tr>
           </thead>
           <tbody>
             {stations.map((s) => (
-              <tr key={s.id}>
-                <td>{s.name}</td>
-                <td>{s.code}</td>
-                <td>{s.manager?.name ?? "—"}</td>
-                <td>{s._count?.attendants ?? 0}</td>
-                <td>
-                  <InviteCodesCell station={s} onUpdated={load} />
-                </td>
-                <td>
-                  <PolicyEditor station={s} onUpdated={load} />
-                </td>
-              </tr>
+              <StationRow key={s.id} station={s} onUpdated={load} />
             ))}
           </tbody>
         </table>

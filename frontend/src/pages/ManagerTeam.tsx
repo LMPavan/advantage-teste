@@ -35,9 +35,11 @@ function InviteCodeCard({ station, onUpdated }: { station: Station; onUpdated: (
         <button className="btn secondary small" onClick={copy}>
           {copied ? "Copiado!" : "Copiar"}
         </button>
-        <button className="btn secondary small" onClick={regenerate} disabled={regenerating}>
-          {regenerating ? "Gerando..." : "Gerar novo código"}
-        </button>
+        {station.managerCanRegenerateInviteCode && (
+          <button className="btn secondary small" onClick={regenerate} disabled={regenerating}>
+            {regenerating ? "Gerando..." : "Gerar novo código"}
+          </button>
+        )}
       </div>
     </div>
   );
@@ -236,7 +238,7 @@ export function ManagerTeam() {
       <div className="card section">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <h2 style={{ marginBottom: 0 }}>Desempenho do time</h2>
-          <NewAttendantForm onCreated={load} />
+          {station?.managerCanManageTeam !== false && <NewAttendantForm onCreated={load} />}
         </div>
         <table className="table" style={{ marginTop: "0.8rem" }}>
           <thead>
@@ -266,7 +268,13 @@ export function ManagerTeam() {
       <div className="card section">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <h2 style={{ marginBottom: 0 }}>Metas do posto</h2>
-          <NewGoalForm items={items} attendants={attendants} onCreated={load} />
+          {station?.managerCanManageGoals !== false ? (
+            <NewGoalForm items={items} attendants={attendants} onCreated={load} />
+          ) : (
+            <span className="subtitle" style={{ margin: 0 }}>
+              O dono da rede não liberou o cadastro de metas para você.
+            </span>
+          )}
         </div>
         <table className="table" style={{ marginTop: "0.8rem" }}>
           <thead>

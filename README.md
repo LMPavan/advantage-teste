@@ -10,17 +10,18 @@ configurável e resgate de comissão, em três visões:
   de qualquer item para ver o que fez dia a dia e um gráfico do ritmo de comissão, filtrando por
   semana, mês ou período personalizado.
 - **Gerente**: dashboard com KPIs do posto (atingimento, comissão, resgates pendentes, comissão por
-  item) e a posição de cada frentista no ranking do posto; gestão de equipe e metas; aprovação de
-  resgates.
+  item) e a posição de cada frentista no ranking do posto; gestão de equipe e metas (conforme o que o
+  dono liberou); aprovação de resgates; envia mensagens para a equipe.
 - **Dono / administrador**: dashboard com KPIs de toda a rede (postos, gerentes, frentistas,
   atingimento, comissão, resgates, comissão por item, melhor posto / que precisa de atenção), cadastro
-  de postos e itens/comissionamento, gestão de resgates em qualquer posto da rede, e visão executiva
-  (ranking de postos e frentistas).
+  de postos e itens/comissionamento, gestão de resgates em qualquer posto da rede, visão executiva
+  (ranking de postos e frentistas), controle de permissões por posto e envio de mensagens para
+  gerentes/frentistas.
 
-Inclui também **gamificação**: ranking de frentistas dentro do posto, ranking de postos/gerentes dentro
-da rede, medalhas e molduras douradas/prata/bronze para o 1º/2º/3º lugar, foto de perfil, um mural
-("hall da fama") com os melhores do mês anterior em toda a rede, e um conjunto de **conquistas**
-(badges) individuais do frentista por marcos de comissão, desempenho e consistência.
+Inclui também **gamificação**: ranking de frentistas dentro do posto (com filtro por item), ranking de
+postos/gerentes dentro da rede, medalhas e molduras douradas/prata/bronze para o 1º/2º/3º lugar, foto de
+perfil, um mural ("hall da fama") com os melhores do mês anterior em toda a rede, e **32 conquistas**
+(badges) individuais do frentista por marcos de comissão, desempenho, ranking e consistência.
 
 ## Stack
 
@@ -47,6 +48,11 @@ docker-compose.yml   Postgres local para desenvolvimento
   (valor direto ou mix), a direção da meta, o tipo de comissionamento (centavos/litro, R$/litro,
   R$/unidade, % sobre valor vendido ou valor fixo ao bater a meta) e a forma de pagamento — só paga ao
   atingir um percentual mínimo (threshold) ou paga proporcional ao atingimento.
+- **Comissão vinculada à meta ou não** (`linkedToGoal`): por padrão a comissão só é paga conforme o
+  atingimento da meta (payoutMode/threshold acima). O dono pode desmarcar essa opção para um item —
+  nesse caso a comissão é paga integralmente por unidade vendida, sempre, independente de bater a meta
+  (ex.: 3 centavos por litro de aditivada vendido, pago mesmo sem atingir o alvo). A meta continua
+  existindo só para acompanhamento/gamificação; payoutMode e o percentual mínimo são ignorados.
 - **Resgate**: o frentista só pode solicitar resgate nas periodicidades (diária/semanal/mensal)
   liberadas pelo administrador para o posto. O gerente (ou dono) aprova, rejeita ou marca como pago.
 
@@ -83,17 +89,47 @@ O primeiro passo do cadastro é escolher o perfil (dono, gerente ou frentista):
   - Aplicado também à tabela de "Ranking de postos" na visão executiva do dono, no mesmo critério.
 - **Mural (hall da fama)**: página acessível aos três perfis com o pódio (top 3) de frentistas e de
   postos do **mês anterior**, em toda a rede, com foto/avatar de cada um.
-- **Conquistas (medalhas do frentista)**: calculadas automaticamente a partir do histórico completo
+- **Conquistas (32 medalhas do frentista)**: calculadas automaticamente a partir do histórico completo
   (não apenas do período atual) — sem precisar de nenhuma infraestrutura extra além dos dados já
   existentes:
-  - 🎉 Primeira comissão · 💵 R$100 · 💰 R$500 · 🏦 R$1.000 · 💎 R$5.000 em comissão acumulada
-  - 🎯 Meta batida (qualquer meta ≥100%) · 🌟 Mês perfeito (todas as metas do mês fechado anterior
-    ≥100%) · ⛽ Mestre do mix (bateu a meta de mix de aditivada)
-  - 🥇 Campeão do mês (1º colocado do posto no mês fechado anterior) · 🥉 Pódio (top 3 do posto no mês
-    fechado anterior)
-  - 🔥 Sequência (lançou vendas em 5 dias seguidos) · 🏧 Resgate na conta (teve um resgate pago)
+  - **Comissão acumulada**: R$0,01 (primeira) · R$100 · R$500 · R$1.000 · R$5.000 · R$10.000 ·
+    R$25.000 · R$50.000
+  - **Metas batidas**: 1ª meta batida · 10 · 50 · 100 metas batidas (histórico) · meta explodida
+    (≥150%) · meta estratosférica (≥200%) · mestre do mix · multitarefa (bateu metas de 3+ itens
+    diferentes)
+  - **Ranking**: mês perfeito (todas as metas do mês fechado anterior ≥100%) · campeão do mês e pódio
+    (1º / top 3 do posto no mês fechado anterior) · campeão da rede e pódio da rede (1º / top 3 entre
+    todos os frentistas da rede no mês fechado anterior)
+  - **Consistência**: sequência de 5, 10 e 30 dias seguidos lançando vendas · 100 lançamentos
+    (histórico)
+  - **Resgates**: resgate na conta (1º pago) · 5 e 10 resgates pagos · R$1.000 resgatados (histórico)
+  - **Perfil**: 30 dias e 1 ano de casa · foto de perfil cadastrada
   - As medalhas conquistadas aparecem em destaque no topo de "Minhas metas" e na página dedicada
     "Conquistas", junto com as ainda bloqueadas.
+
+## Permissões do gerente
+
+O dono decide, por posto, o que cada gerente pode fazer — ele mesmo sempre pode tudo, independente
+destas opções:
+
+- Cadastrar/editar metas e valores-alvo
+- Cadastrar novos frentistas
+- Definir a periodicidade de resgate liberada
+- Regenerar o código de convite de frentista
+
+Configurável na tela **Postos** do dono (botão "Gerenciar" em cada posto). Quando uma ação não está
+liberada, a opção correspondente some ou fica desabilitada na tela do gerente, com uma mensagem
+explicando que o dono não liberou aquilo para o posto.
+
+## Mensagens
+
+O dono pode mandar mensagens para um gerente ou frentista específico, para a equipe de um posto, para
+todos os gerentes, todos os frentistas ou toda a rede. O gerente pode mandar para um frentista
+específico do próprio posto ou para toda a sua equipe. Frentistas só recebem (não enviam).
+
+Mensagens não lidas aparecem em um **pop-up ao abrir a tela inicial** (Dashboard/Minhas metas), com
+um botão para marcar todas como lidas, além de uma aba dedicada **Mensagens** (com contador de não
+lidas no menu) com o histórico completo e, para dono/gerente, o formulário de composição.
 
 ## Período mostrado nos dashboards e rankings
 
@@ -139,8 +175,11 @@ rede — o suficiente para já mostrar as medalhas no ranking de postos (regra d
 | Gerente    | paula@example.com      | Posto Leste   |
 | Frentista  | marcos@example.com     | Posto Leste   |
 
-O seed também cria dados do mês anterior para os frentistas do Posto Central, Norte e Sul, para
-popular o mural (hall da fama) desde o primeiro acesso.
+O seed também cria: dados do mês anterior para os frentistas do Posto Central, Norte e Sul (popula o
+mural); um item de comissão desvinculada da meta ("Bônus Aditivada", pago por litro mesmo abaixo do
+alvo); o Posto Leste com permissões de gerente restritas (não pode cadastrar metas nem frentistas); e
+duas mensagens de exemplo (uma do dono para toda a rede, outra da gerente para o Fábio) para já
+demonstrar o pop-up e a aba de mensagens no primeiro acesso.
 
 ### 3. Frontend
 
@@ -162,7 +201,8 @@ tela de login, como dono).
 | POST | `/auth/login` | público |
 | POST | `/stations` | OWNER |
 | GET/PATCH | `/stations`, `/stations/:id/redemption-policy` | OWNER / MANAGER |
-| POST | `/stations/:id/invite-codes/regenerate` | OWNER (qualquer código); MANAGER (só o de frentista do próprio posto) |
+| POST | `/stations/:id/invite-codes/regenerate` | OWNER (qualquer código); MANAGER (só o de frentista do próprio posto, se liberado) |
+| PATCH | `/stations/:id/permissions` | OWNER (define o que o gerente deste posto pode fazer) |
 | POST | `/users/attendants` | MANAGER / OWNER |
 | GET | `/users/team` | MANAGER / OWNER |
 | POST/GET/PATCH | `/items` | OWNER cria; todos leem |
@@ -178,6 +218,9 @@ tela de login, como dono).
 | GET | `/dashboard/network-ranking` | MANAGER / OWNER |
 | GET | `/dashboard/hall-of-fame` | ATTENDANT / MANAGER / OWNER (mês anterior por padrão, ou `?month=YYYY-MM`) |
 | GET | `/badges` | ATTENDANT (conquistas do próprio frentista) |
+| POST/GET | `/messages` | OWNER/MANAGER enviam (escopo por papel); todos leem a própria caixa |
+| GET | `/messages/recipients` | OWNER/MANAGER (opções de destinatário para compor mensagem) |
+| PATCH | `/messages/:id/read`, POST `/messages/read-all` | todos (marcar como lida) |
 
 ## Próximos passos sugeridos
 

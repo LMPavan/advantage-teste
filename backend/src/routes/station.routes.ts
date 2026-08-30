@@ -154,6 +154,9 @@ stationRouter.patch("/:id/redemption-policy", requireRole("OWNER", "MANAGER"), a
   if (role === "MANAGER" && station.id !== stationId) {
     return res.status(403).json({ error: "Sem acesso a este posto." });
   }
+  if (role === "MANAGER" && !station.managerCanManageRedemptionPolicy) {
+    return res.status(403).json({ error: "O dono da rede não liberou a gestão da política de resgate para gerentes neste posto." });
+  }
 
   const policy = await prisma.redemptionPolicy.upsert({
     where: { stationId: station.id },
@@ -190,6 +193,9 @@ stationRouter.post("/:id/invite-codes/regenerate", requireRole("OWNER", "MANAGER
     if (parsed.data.type !== "ATTENDANT") {
       return res.status(403).json({ error: "Apenas o dono da rede pode regenerar o código de gerente." });
     }
+    if (!station.managerCanRegenerateInviteCode) {
+      return res.status(403).json({ error: "O dono da rede não liberou a regeneração do código de convite para gerentes neste posto." });
+    }
   }
 
   let newCode = "";
@@ -214,5 +220,34 @@ stationRouter.post("/:id/invite-codes/regenerate", requireRole("OWNER", "MANAGER
   return res.json({
     managerInviteCode: updated.managerInviteCode,
     attendantInviteCode: updated.attendantInviteCode,
+  });
+});
+
+const permissionsSchema = z.object({
+  managerCanManageGoals: z.boolean().optional(),
+  managerCanManageTeam: z.boolean().optional(),
+  managerCanManageRedemptionPolicy: z.boolean().optional(),
+  managerCanRegenerateInviteCode: z.boolean().optional(),
+});
+
+// Só o dono da rede decide quais ações ficam liberadas para o gerente deste posto.
+stationRouter.patch("/:id/permissions", requireRole("OWNER"), async (req, res) => {
+  const parsed = permissionsSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Dados inválidos.", details: parsed.error.flatten() });
+  }
+
+  const station = await prisma.station.findUnique({ where: { id: req.params.id } });
+  if (!station) return res.status(404).json({ error: "Posto não encontrado." });
+  if (station.networkId !== req.auth!.networkId) {
+    return res.status(403).json({ error: "Sem acesso a este posto." });
+  }
+
+  const updated = await prisma.station.update({ where: { id: station.id }, data: parsed.data });
+  return res.json({
+    managerCanManageGoals: updated.managerCanManageGoals,
+    managerCanManageTeam: updated.managerCanManageTeam,
+    managerCanManageRedemptionPolicy: updated.managerCanManageRedemptionPolicy,
+    managerCanRegenerateInviteCode: updated.managerCanRegenerateInviteCode,
   });
 });

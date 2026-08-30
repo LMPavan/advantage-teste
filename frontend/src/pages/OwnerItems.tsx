@@ -29,6 +29,7 @@ function NewItemForm({ onCreated }: { onCreated: () => void }) {
   const [direction, setDirection] = useState<GoalDirection>("HIGHER_IS_BETTER");
   const [commissionType, setCommissionType] = useState<CommissionType>("CURRENCY_PER_UNIT");
   const [commissionValue, setCommissionValue] = useState("");
+  const [linkedToGoal, setLinkedToGoal] = useState(true);
   const [payoutMode, setPayoutMode] = useState<PayoutMode>("PROPORTIONAL");
   const [threshold, setThreshold] = useState("100");
   const [error, setError] = useState<string | null>(null);
@@ -46,6 +47,7 @@ function NewItemForm({ onCreated }: { onCreated: () => void }) {
         direction,
         commissionType,
         commissionValue: Number(commissionValue),
+        linkedToGoal,
         payoutMode,
         achievementThresholdPercent: Number(threshold),
       });
@@ -112,20 +114,38 @@ function NewItemForm({ onCreated }: { onCreated: () => void }) {
         <label>Valor da comissão (centavos, R$ ou %, conforme o tipo)</label>
         <input className="input" type="number" step="0.01" value={commissionValue} onChange={(e) => setCommissionValue(e.target.value)} />
       </div>
-      <div className="field">
-        <label>Forma de pagamento</label>
-        <select className="input" value={payoutMode} onChange={(e) => setPayoutMode(e.target.value as PayoutMode)}>
-          {Object.entries(PAYOUT_LABEL).map(([k, v]) => (
-            <option key={k} value={k}>
-              {v}
-            </option>
-          ))}
-        </select>
+
+      <div className="field" style={{ gridColumn: "1 / -1" }}>
+        <label style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+          <input type="checkbox" checked={linkedToGoal} onChange={(e) => setLinkedToGoal(e.target.checked)} />
+          Comissão vinculada ao atingimento da meta
+        </label>
+        <span style={{ fontSize: "0.78rem", color: "var(--text-muted)" }}>
+          {linkedToGoal
+            ? "Só paga conforme as regras abaixo (percentual mínimo ou proporcional ao atingimento)."
+            : "Paga integralmente por unidade vendida, sempre — independente de bater a meta. Ex.: 3 centavos por litro de aditivada vendido. A meta continua existindo só para acompanhamento."}
+        </span>
       </div>
-      <div className="field">
-        <label>Percentual mínimo de atingimento (%)</label>
-        <input className="input" type="number" step="1" value={threshold} onChange={(e) => setThreshold(e.target.value)} />
-      </div>
+
+      {linkedToGoal && (
+        <>
+          <div className="field">
+            <label>Forma de pagamento</label>
+            <select className="input" value={payoutMode} onChange={(e) => setPayoutMode(e.target.value as PayoutMode)}>
+              {Object.entries(PAYOUT_LABEL).map(([k, v]) => (
+                <option key={k} value={k}>
+                  {v}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="field">
+            <label>Percentual mínimo de atingimento (%)</label>
+            <input className="input" type="number" step="1" value={threshold} onChange={(e) => setThreshold(e.target.value)} />
+          </div>
+        </>
+      )}
+
       <div style={{ display: "flex", gap: "0.5rem", alignItems: "end" }}>
         <button className="btn small" onClick={submit} disabled={saving || !name || !unit || !commissionValue}>
           {saving ? "Salvando..." : "Criar item"}
@@ -165,6 +185,7 @@ export function OwnerItems() {
               <th>Item</th>
               <th>Cálculo</th>
               <th>Comissionamento</th>
+              <th>Vínculo com a meta</th>
               <th>Pagamento</th>
               <th>Meta mínima</th>
             </tr>
@@ -179,8 +200,15 @@ export function OwnerItems() {
                 <td>
                   {COMMISSION_LABEL[i.commissionType]}: {i.commissionValue}
                 </td>
-                <td>{PAYOUT_LABEL[i.payoutMode]}</td>
-                <td>{i.achievementThresholdPercent}%</td>
+                <td>
+                  {i.linkedToGoal ? (
+                    <span className="badge neutral">Vinculada à meta</span>
+                  ) : (
+                    <span className="badge ok">Paga por unidade</span>
+                  )}
+                </td>
+                <td>{i.linkedToGoal ? PAYOUT_LABEL[i.payoutMode] : "—"}</td>
+                <td>{i.linkedToGoal ? `${i.achievementThresholdPercent}%` : "—"}</td>
               </tr>
             ))}
           </tbody>

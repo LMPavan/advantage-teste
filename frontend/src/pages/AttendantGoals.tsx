@@ -7,6 +7,7 @@ import { AchievementBadge, ProgressBar } from "../components/ProgressBar";
 import { BadgeShelf } from "../components/BadgeGrid";
 import { Medal, tierForRank } from "../components/Leaderboard";
 import { Avatar } from "../components/Avatar";
+import { UnreadMessagesPopup } from "../components/UnreadMessagesPopup";
 
 const PERIOD_LABEL: Record<string, string> = { DAILY: "Diária", WEEKLY: "Semanal", MONTHLY: "Mensal" };
 
@@ -153,6 +154,7 @@ export function AttendantGoals() {
 
   return (
     <div>
+      <UnreadMessagesPopup />
       <h1>Minhas metas</h1>
       <p className="subtitle">Acompanhe atingimento, o que falta e a comissão de cada item.</p>
 
@@ -195,7 +197,12 @@ export function AttendantGoals() {
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start" }}>
                 <div>
                   <h2 style={{ marginBottom: "0.1rem" }}>{goal.item.name}</h2>
-                  <span className="badge neutral">{PERIOD_LABEL[goal.period]}</span>
+                  <span className="badge neutral">{PERIOD_LABEL[goal.period]}</span>{" "}
+                  {!goal.item.linkedToGoal && (
+                    <span className="badge ok" title="Você recebe por unidade vendida, mesmo sem bater a meta.">
+                      Paga por unidade
+                    </span>
+                  )}
                 </div>
                 <AchievementBadge percent={goal.progress.achievementPercent} />
               </div>

@@ -4,6 +4,7 @@ import { api } from "../api/client";
 import type { AttendantRankingRow, ManagerSummary } from "../types";
 import { ItemBreakdownTable, KpiCard, RedemptionSummaryCards } from "../components/DashboardWidgets";
 import { TeamLeaderboard } from "../components/TeamLeaderboard";
+import { UnreadMessagesPopup } from "../components/UnreadMessagesPopup";
 
 export function ManagerDashboard() {
   const [data, setData] = useState<ManagerSummary | null>(null);
@@ -16,6 +17,7 @@ export function ManagerDashboard() {
 
   return (
     <div>
+      <UnreadMessagesPopup />
       <h1>Dashboard</h1>
       <p className="subtitle">Panorama do seu posto neste período.</p>
 

@@ -49,6 +49,9 @@ goalRouter.post("/", requireRole("MANAGER", "OWNER"), async (req, res) => {
   if (role === "OWNER" && station.networkId !== networkId) {
     return res.status(403).json({ error: "Sem acesso a este posto." });
   }
+  if (role === "MANAGER" && !station.managerCanManageGoals) {
+    return res.status(403).json({ error: "O dono da rede não liberou o cadastro de metas para gerentes neste posto." });
+  }
 
   const item = await prisma.item.findUnique({ where: { id: data.itemId } });
   if (!item || item.networkId !== station.networkId) {

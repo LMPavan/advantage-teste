@@ -20,6 +20,9 @@ const itemSchema = z.object({
     "FIXED_PER_PERIOD",
   ]),
   commissionValue: z.number(),
+  // Se false, a comissão é paga integralmente por unidade vendida, sem depender de bater a meta —
+  // payoutMode/achievementThresholdPercent são ignorados nesse caso (mas continuam sendo salvos).
+  linkedToGoal: z.boolean().default(true),
   payoutMode: z.enum(["THRESHOLD", "PROPORTIONAL"]),
   achievementThresholdPercent: z.number().min(0).max(1000).default(100),
 });
