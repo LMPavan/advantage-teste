@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "../prisma";
 import { requireAuth, requireRole } from "../middleware/auth";
 import { computeGoalProgress } from "../services/commission.service";
+import { currentRange } from "../services/ranking.service";
 
 export const goalRouter = Router();
 goalRouter.use(requireAuth);
@@ -66,23 +67,25 @@ goalRouter.post("/", requireRole("MANAGER", "OWNER"), async (req, res) => {
   return res.status(201).json(goal);
 });
 
-// Lista metas com o progresso já calculado.
+// Lista metas com o progresso já calculado. Por padrão mostra apenas metas ativas agora (que já
+// começaram e ainda não terminaram) — metas de períodos fechados não aparecem aqui.
 // ATTENDANT: apenas as suas + coletivas do posto. MANAGER: todas do posto. OWNER: toda a rede (opcionalmente ?stationId=).
 goalRouter.get("/", async (req, res) => {
   const { role, stationId, networkId, userId } = req.auth!;
+  const now = currentRange();
 
-  let where: any = {};
+  let where: any = { startDate: { lte: now.end }, endDate: { gte: now.start } };
   if (role === "ATTENDANT") {
-    where = { stationId, OR: [{ attendantId: userId }, { attendantId: null }] };
+    where = { ...where, stationId, OR: [{ attendantId: userId }, { attendantId: null }] };
   } else if (role === "MANAGER") {
-    where = { stationId };
+    where = { ...where, stationId };
   } else {
     const filterStationId = req.query.stationId as string | undefined;
     if (filterStationId) {
-      where = { stationId: filterStationId };
+      where = { ...where, stationId: filterStationId };
     } else {
       const stations = await prisma.station.findMany({ where: { networkId: networkId! }, select: { id: true } });
-      where = { stationId: { in: stations.map((s) => s.id) } };
+      where = { ...where, stationId: { in: stations.map((s) => s.id) } };
     }
   }
 

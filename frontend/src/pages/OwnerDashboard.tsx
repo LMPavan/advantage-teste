@@ -1,0 +1,69 @@
+import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
+import { api } from "../api/client";
+import type { OwnerSummary } from "../types";
+import { HighlightCard, ItemBreakdownTable, KpiCard, RedemptionSummaryCards } from "../components/DashboardWidgets";
+
+export function OwnerDashboard() {
+  const [data, setData] = useState<OwnerSummary | null>(null);
+
+  useEffect(() => {
+    api.get<OwnerSummary>("/dashboard/owner-summary").then(setData);
+  }, []);
+
+  return (
+    <div>
+      <h1>Dashboard</h1>
+      <p className="subtitle">Panorama geral da rede neste período.</p>
+
+      <div className="grid cols-3 section">
+        <KpiCard value={data?.stationsCount ?? "-"} label="Postos" />
+        <KpiCard value={data?.managersCount ?? "-"} label="Gerentes" />
+        <KpiCard value={data?.attendantsCount ?? "-"} label="Frentistas" />
+        <KpiCard value={data ? `${data.avgAchievement.toFixed(1)}%` : "-"} label="Atingimento médio da rede" />
+        <KpiCard value={data ? `R$ ${data.totalCommission.toFixed(2)}` : "-"} label="Comissão gerada no período" />
+      </div>
+
+      <div className="section">
+        <h2>Fila de resgates</h2>
+        {data && <RedemptionSummaryCards summary={data.redemptionSummary} />}
+        <div style={{ marginTop: "0.8rem" }}>
+          <Link to="/owner/redemptions" className="btn secondary small">
+            Gerenciar resgates →
+          </Link>
+        </div>
+      </div>
+
+      <div className="grid cols-2 section">
+        <HighlightCard
+          title="🏆 Melhor posto"
+          name={data?.bestStation?.stationName}
+          meta={data?.bestStation ? `${data.bestStation.managerName ?? "Sem gerente"}` : undefined}
+          achievement={data?.bestStation?.avgAchievement}
+          empty="Ainda não há postos com metas registradas."
+        />
+        <HighlightCard
+          title="⚠️ Precisa de atenção"
+          name={data?.worstStation?.stationName}
+          meta={data?.worstStation ? `${data.worstStation.managerName ?? "Sem gerente"}` : undefined}
+          achievement={data?.worstStation?.avgAchievement}
+          empty="Cadastre mais de um posto para ver comparativos."
+        />
+      </div>
+
+      <div className="card section">
+        <h2>Comissão por item</h2>
+        {data && <ItemBreakdownTable rows={data.itemBreakdown} />}
+      </div>
+
+      <div style={{ display: "flex", gap: "0.6rem" }}>
+        <Link to="/owner/ranking" className="btn secondary small">
+          Ver ranking executivo →
+        </Link>
+        <Link to="/owner/hall-of-fame" className="btn secondary small">
+          🏆 Ver mural →
+        </Link>
+      </div>
+    </div>
+  );
+}

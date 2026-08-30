@@ -39,6 +39,7 @@ button {
 }
 
 .btn {
+  display: inline-block;
   border: none;
   border-radius: var(--radius);
   padding: 0.55rem 1.1rem;
@@ -47,6 +48,7 @@ button {
   cursor: pointer;
   background: var(--primary);
   color: white;
+  text-decoration: none;
   transition: background 0.15s ease;
 }
 .btn:hover {
@@ -481,4 +483,63 @@ h2 {
   background: var(--primary);
   border-color: var(--primary);
   color: white;
+}
+
+/* ---------------------------------------------------------------------- */
+/* Conquistas (badges)                                                    */
+/* ---------------------------------------------------------------------- */
+
+.badge-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 0.9rem;
+}
+.badge-tile {
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  padding: 1.1rem 0.6rem;
+  text-align: center;
+  background: var(--surface);
+}
+.badge-tile.achieved {
+  background: linear-gradient(160deg, rgba(250, 204, 21, 0.14), rgba(250, 204, 21, 0.02));
+  border-color: #facc15;
+  box-shadow: 0 0 0 1px rgba(250, 204, 21, 0.3), 0 4px 16px rgba(250, 204, 21, 0.1);
+}
+.badge-tile.locked {
+  opacity: 0.45;
+}
+.badge-tile-icon {
+  font-size: 2rem;
+  margin-bottom: 0.4rem;
+  filter: grayscale(1);
+}
+.badge-tile.achieved .badge-tile-icon {
+  filter: none;
+}
+.badge-tile-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.badge-shelf {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+.badge-shelf-item {
+  font-size: 1.3rem;
+  cursor: default;
+}
+
+.goal-remaining {
+  font-size: 0.82rem;
+  margin-top: 0.4rem;
+}
+.goal-remaining.done {
+  color: var(--success);
+  font-weight: 600;
+}
+.goal-remaining.pending {
+  color: var(--text-muted);
 }

@@ -147,3 +147,49 @@ export interface HallOfFame {
   topAttendants: AttendantRankingRow[];
   topStations: StationRankingRow[];
 }
+
+export interface ItemBreakdownRow {
+  itemId: string;
+  itemName: string;
+  unit: string;
+  totalCommission: number;
+  avgAchievement: number;
+  goalsCount: number;
+}
+
+export interface RedemptionStatusSummary {
+  count: number;
+  amount: number;
+}
+
+export type RedemptionSummary = Record<RedemptionStatus, RedemptionStatusSummary>;
+
+export interface OwnerSummary {
+  stationsCount: number;
+  managersCount: number;
+  attendantsCount: number;
+  totalCommission: number;
+  avgAchievement: number;
+  itemBreakdown: ItemBreakdownRow[];
+  redemptionSummary: RedemptionSummary;
+  bestStation: StationRankingRow | null;
+  worstStation: StationRankingRow | null;
+}
+
+export interface ManagerSummary {
+  attendantsCount: number;
+  totalCommission: number;
+  avgAchievement: number;
+  itemBreakdown: ItemBreakdownRow[];
+  redemptionSummary: RedemptionSummary;
+  topAttendant: AttendantRankingRow | null;
+  attendantNeedingAttention: AttendantRankingRow | null;
+}
+
+export interface Badge {
+  id: string;
+  label: string;
+  description: string;
+  icon: string;
+  achieved: boolean;
+}

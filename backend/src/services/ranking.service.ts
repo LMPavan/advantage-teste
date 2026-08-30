@@ -12,6 +12,15 @@ export function previousMonthRange(reference = new Date()): DateRange {
   return { start, end };
 }
 
+/**
+ * Intervalo "atual": um único instante (agora). Usado como padrão para as visões de "período atual"
+ * — combinado com o filtro de sobreposição (startDate <= end && endDate >= start), ele seleciona
+ * exatamente as metas que estão ativas neste momento, sem misturar metas de meses já fechados.
+ */
+export function currentRange(reference = new Date()): DateRange {
+  return { start: reference, end: reference };
+}
+
 /** Converte um parâmetro "YYYY-MM" no intervalo do respectivo mês; usa o mês anterior por padrão. */
 export function monthRangeFromParam(month?: string): DateRange {
   if (month && /^\d{4}-\d{2}$/.test(month)) {
@@ -34,8 +43,8 @@ export interface AttendantRankingRow {
   goalsCount: number;
 }
 
-/** Ranking dos frentistas de um posto (opcionalmente restrito a um intervalo de datas). */
-export async function getAttendantRanking(stationId: string, range?: DateRange): Promise<AttendantRankingRow[]> {
+/** Ranking dos frentistas de um posto, restrito a um intervalo de datas (padrão: metas ativas agora). */
+export async function getAttendantRanking(stationId: string, range: DateRange = currentRange()): Promise<AttendantRankingRow[]> {
   const [attendants, station] = await Promise.all([
     prisma.user.findMany({
       where: { role: "ATTENDANT", stationId },
@@ -50,7 +59,8 @@ export async function getAttendantRanking(stationId: string, range?: DateRange):
     where: {
       stationId,
       attendantId: { in: attendants.map((a) => a.id) },
-      ...(range ? { startDate: { lte: range.end }, endDate: { gte: range.start } } : {}),
+      startDate: { lte: range.end },
+      endDate: { gte: range.start },
     },
   });
 
@@ -81,7 +91,7 @@ export async function getAttendantRanking(stationId: string, range?: DateRange):
 }
 
 /** Ranking de frentistas em toda a rede (usado no mural / hall da fama). */
-export async function getNetworkAttendantRanking(networkId: string, range?: DateRange): Promise<AttendantRankingRow[]> {
+export async function getNetworkAttendantRanking(networkId: string, range: DateRange = currentRange()): Promise<AttendantRankingRow[]> {
   const stations = await prisma.station.findMany({ where: { networkId }, select: { id: true } });
   const perStation = await Promise.all(stations.map((s) => getAttendantRanking(s.id, range)));
   return perStation.flat().sort((a, b) => b.avgAchievement - a.avgAchievement);
@@ -98,8 +108,8 @@ export interface StationRankingRow {
   attendantsCount: number;
 }
 
-/** Ranking dos postos/gerentes de uma rede (opcionalmente restrito a um intervalo de datas). */
-export async function getStationRanking(networkId: string, range?: DateRange): Promise<StationRankingRow[]> {
+/** Ranking dos postos/gerentes de uma rede, restrito a um intervalo de datas (padrão: metas ativas agora). */
+export async function getStationRanking(networkId: string, range: DateRange = currentRange()): Promise<StationRankingRow[]> {
   const stations = await prisma.station.findMany({
     where: { networkId },
     include: {
@@ -114,7 +124,8 @@ export async function getStationRanking(networkId: string, range?: DateRange): P
       const goals = await prisma.goal.findMany({
         where: {
           stationId: station.id,
-          ...(range ? { startDate: { lte: range.end }, endDate: { gte: range.start } } : {}),
+          startDate: { lte: range.end },
+          endDate: { gte: range.start },
         },
       });
       const progresses = await Promise.all(goals.map((g) => computeGoalProgress(g.id)));

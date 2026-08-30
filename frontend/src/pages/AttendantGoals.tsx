@@ -1,9 +1,22 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { api, ApiError } from "../api/client";
-import type { Goal } from "../types";
+import type { Badge, Goal } from "../types";
 import { AchievementBadge, ProgressBar } from "../components/ProgressBar";
+import { BadgeShelf } from "../components/BadgeGrid";
 
 const PERIOD_LABEL: Record<string, string> = { DAILY: "Diária", WEEKLY: "Semanal", MONTHLY: "Mensal" };
+
+function remainingMessage(goal: Goal): { text: string; done: boolean } {
+  const { actualValue, targetValue, achievementPercent } = goal.progress;
+  if (achievementPercent >= 100) return { text: "Meta batida! 🎉", done: true };
+  if (goal.item.direction === "LOWER_IS_BETTER") {
+    const diff = Math.round((actualValue - targetValue) * 100) / 100;
+    return { text: `Reduza mais ${diff} para bater a meta`, done: false };
+  }
+  const diff = Math.round((targetValue - actualValue) * 100) / 100;
+  return { text: `Faltam ${diff} ${goal.item.unit} para bater a meta`, done: false };
+}
 
 function EntryForm({ goal, onSaved }: { goal: Goal; onSaved: () => void }) {
   const isMix = goal.item.calculationType === "MIX_RATIO";
@@ -82,6 +95,7 @@ function EntryForm({ goal, onSaved }: { goal: Goal; onSaved: () => void }) {
 
 export function AttendantGoals() {
   const [goals, setGoals] = useState<Goal[] | null>(null);
+  const [badges, setBadges] = useState<Badge[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   function load() {
@@ -89,16 +103,18 @@ export function AttendantGoals() {
       .get<Goal[]>("/goals")
       .then(setGoals)
       .catch((err) => setError(err instanceof ApiError ? err.message : "Erro ao carregar metas."));
+    api.get<Badge[]>("/badges").then(setBadges);
   }
 
   useEffect(load, []);
 
   const totalCommission = goals?.reduce((sum, g) => sum + g.progress.commissionAmount, 0) ?? 0;
+  const goalsHit = goals?.filter((g) => g.progress.achievementPercent >= 100).length ?? 0;
 
   return (
     <div>
       <h1>Minhas metas</h1>
-      <p className="subtitle">Acompanhe atingimento e comissão de cada item.</p>
+      <p className="subtitle">Acompanhe atingimento, o que falta e a comissão de cada item.</p>
 
       <div className="section grid cols-3">
         <div className="card stat">
@@ -106,38 +122,57 @@ export function AttendantGoals() {
           <span className="label">Comissão acumulada no período</span>
         </div>
         <div className="card stat">
-          <span className="value">{goals?.length ?? 0}</span>
-          <span className="label">Metas ativas</span>
+          <span className="value">
+            {goalsHit}/{goals?.length ?? 0}
+          </span>
+          <span className="label">Metas batidas no período</span>
         </div>
       </div>
+
+      {badges && (
+        <div className="card section" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "0.6rem" }}>
+          <div>
+            <div style={{ fontWeight: 600, marginBottom: "0.3rem" }}>🎖️ Suas conquistas</div>
+            <BadgeShelf badges={badges} />
+            {badges.every((b) => !b.achieved) && <p className="subtitle" style={{ margin: 0 }}>Ainda sem medalhas — comece lançando suas vendas!</p>}
+          </div>
+          <Link to="/attendant/badges" className="btn secondary small">
+            Ver todas →
+          </Link>
+        </div>
+      )}
 
       {error && <p className="error-text">{error}</p>}
       {!goals && !error && <p>Carregando...</p>}
 
       <div className="grid cols-2 section">
-        {goals?.map((goal) => (
-          <div className="card" key={goal.id}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start" }}>
-              <div>
-                <h2 style={{ marginBottom: "0.1rem" }}>{goal.item.name}</h2>
-                <span className="badge neutral">{PERIOD_LABEL[goal.period]}</span>
+        {goals?.map((goal) => {
+          const remaining = remainingMessage(goal);
+          return (
+            <div className="card" key={goal.id}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start" }}>
+                <div>
+                  <h2 style={{ marginBottom: "0.1rem" }}>{goal.item.name}</h2>
+                  <span className="badge neutral">{PERIOD_LABEL[goal.period]}</span>
+                </div>
+                <AchievementBadge percent={goal.progress.achievementPercent} />
               </div>
-              <AchievementBadge percent={goal.progress.achievementPercent} />
+
+              <p className="subtitle" style={{ margin: "0.6rem 0" }}>
+                Realizado: <strong>{goal.progress.actualValue}</strong> {goal.item.unit} · Meta:{" "}
+                <strong>{goal.progress.targetValue}</strong> {goal.item.unit}
+              </p>
+              <ProgressBar percent={goal.progress.achievementPercent} />
+              <p className={`goal-remaining ${remaining.done ? "done" : "pending"}`}>{remaining.text}</p>
+
+              <p style={{ marginTop: "0.4rem", fontSize: "0.9rem" }}>
+                Comissão gerada: <strong>R$ {goal.progress.commissionAmount.toFixed(2)}</strong>
+              </p>
+
+              <EntryForm goal={goal} onSaved={load} />
             </div>
-
-            <p className="subtitle" style={{ margin: "0.6rem 0" }}>
-              Realizado: <strong>{goal.progress.actualValue}</strong> {goal.item.unit} · Meta:{" "}
-              <strong>{goal.progress.targetValue}</strong> {goal.item.unit}
-            </p>
-            <ProgressBar percent={goal.progress.achievementPercent} />
-
-            <p style={{ marginTop: "0.8rem", fontSize: "0.9rem" }}>
-              Comissão gerada: <strong>R$ {goal.progress.commissionAmount.toFixed(2)}</strong>
-            </p>
-
-            <EntryForm goal={goal} onSaved={load} />
-          </div>
-        ))}
+          );
+        })}
         {goals && goals.length === 0 && <p>Nenhuma meta atribuída ainda. Fale com seu gerente.</p>}
       </div>
     </div>

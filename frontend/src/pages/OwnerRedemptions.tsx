@@ -3,7 +3,7 @@ import { api } from "../api/client";
 import type { Redemption } from "../types";
 import { RedemptionsTable } from "../components/RedemptionsTable";
 
-export function ManagerRedemptions() {
+export function OwnerRedemptions() {
   const [redemptions, setRedemptions] = useState<Redemption[]>([]);
 
   function load() {
@@ -13,10 +13,10 @@ export function ManagerRedemptions() {
 
   return (
     <div>
-      <h1>Resgates da equipe</h1>
-      <p className="subtitle">Aprove, rejeite ou marque como pago os resgates solicitados pelos frentistas.</p>
+      <h1>Resgates da rede</h1>
+      <p className="subtitle">Aprove, rejeite ou marque como pago os resgates solicitados em qualquer posto da rede.</p>
       <div className="card">
-        <RedemptionsTable redemptions={redemptions} onChanged={load} />
+        <RedemptionsTable redemptions={redemptions} showStation onChanged={load} />
       </div>
     </div>
   );

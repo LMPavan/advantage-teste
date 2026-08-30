@@ -9,6 +9,7 @@ import { goalRouter } from "./routes/goal.routes";
 import { entryRouter } from "./routes/entry.routes";
 import { redemptionRouter } from "./routes/redemption.routes";
 import { dashboardRouter } from "./routes/dashboard.routes";
+import { badgesRouter } from "./routes/badges.routes";
 
 const app = express();
 app.use(cors());
@@ -24,6 +25,7 @@ app.use("/goals", goalRouter);
 app.use("/entries", entryRouter);
 app.use("/redemptions", redemptionRouter);
 app.use("/dashboard", dashboardRouter);
+app.use("/badges", badgesRouter);
 
 app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error(err);

@@ -4,17 +4,20 @@ MVP full-stack para gestão de metas comerciais em postos de combustível (mix d
 lubrificantes, palhetas, cheirinho, volume vendido, etc.), com atingimento, comissionamento
 configurável e resgate de comissão, em três visões:
 
-- **Frentista**: acompanha suas metas, atingimento e comissão gerada; lança vendas do dia; solicita
-  resgate (diário/semanal/mensal, conforme liberado pelo administrador).
-- **Gerente**: gerencia a equipe do posto, cria/edita metas por frentista (ou coletivas), aprova ou
-  rejeita resgates.
-- **Dono / administrador**: cadastra postos (rede), cria os itens de meta e define como cada um gera
-  comissão, libera as periodicidades de resgate por posto, e acompanha a visão executiva (ranking de
-  postos, gerentes e frentistas).
+- **Frentista**: dashboard com metas do período, quanto falta para bater cada uma e a comissão já
+  gerada; lança vendas do dia; solicita resgate (diário/semanal/mensal, conforme liberado pelo
+  administrador); acompanha suas medalhas.
+- **Gerente**: dashboard com KPIs do posto (atingimento, comissão, resgates pendentes, comissão por
+  item, melhor frentista / quem precisa de atenção), gestão de equipe e metas, aprovação de resgates.
+- **Dono / administrador**: dashboard com KPIs de toda a rede (postos, gerentes, frentistas,
+  atingimento, comissão, resgates, comissão por item, melhor posto / que precisa de atenção), cadastro
+  de postos e itens/comissionamento, gestão de resgates em qualquer posto da rede, e visão executiva
+  (ranking de postos e frentistas).
 
 Inclui também **gamificação**: ranking de frentistas dentro do posto, ranking de postos/gerentes dentro
-da rede, medalhas e molduras douradas/prata/bronze para o 1º/2º/3º lugar, foto de perfil, e um mural
-("hall da fama") com os melhores do mês anterior em toda a rede.
+da rede, medalhas e molduras douradas/prata/bronze para o 1º/2º/3º lugar, foto de perfil, um mural
+("hall da fama") com os melhores do mês anterior em toda a rede, e um conjunto de **conquistas**
+(badges) individuais do frentista por marcos de comissão, desempenho e consistência.
 
 ## Stack
 
@@ -70,6 +73,24 @@ O primeiro passo do cadastro é escolher o perfil (dono, gerente ou frentista):
   - Aplicado também à tabela de "Ranking de postos" na visão executiva do dono, no mesmo critério.
 - **Mural (hall da fama)**: página acessível aos três perfis com o pódio (top 3) de frentistas e de
   postos do **mês anterior**, em toda a rede, com foto/avatar de cada um.
+- **Conquistas (medalhas do frentista)**: calculadas automaticamente a partir do histórico completo
+  (não apenas do período atual) — sem precisar de nenhuma infraestrutura extra além dos dados já
+  existentes:
+  - 🎉 Primeira comissão · 💵 R$100 · 💰 R$500 · 🏦 R$1.000 · 💎 R$5.000 em comissão acumulada
+  - 🎯 Meta batida (qualquer meta ≥100%) · 🌟 Mês perfeito (todas as metas do mês fechado anterior
+    ≥100%) · ⛽ Mestre do mix (bateu a meta de mix de aditivada)
+  - 🥇 Campeão do mês (1º colocado do posto no mês fechado anterior) · 🥉 Pódio (top 3 do posto no mês
+    fechado anterior)
+  - 🔥 Sequência (lançou vendas em 5 dias seguidos) · 🏧 Resgate na conta (teve um resgate pago)
+  - As medalhas conquistadas aparecem em destaque no topo de "Minhas metas" e na página dedicada
+    "Conquistas", junto com as ainda bloqueadas.
+
+## Período mostrado nos dashboards e rankings
+
+Por padrão, todas as telas de "período atual" (Minhas metas, os dois dashboards, os rankings sem
+`?month=`) mostram apenas **metas ativas agora** (a data de hoje está dentro do início/fim da meta) —
+metas de meses já fechados não entram nessas somas. Somente o mural (hall da fama) e as chamadas
+explícitas com `?month=YYYY-MM` olham para outros períodos, propositalmente.
 
 ## Rodando localmente
 
@@ -140,9 +161,12 @@ tela de login, como dono).
 | POST/GET/PATCH | `/redemptions` | ATTENDANT solicita; MANAGER/OWNER decidem |
 | GET | `/dashboard/executive` | OWNER |
 | GET | `/dashboard/team` | MANAGER |
+| GET | `/dashboard/owner-summary` | OWNER (KPIs, resgates, comissão por item, destaques) |
+| GET | `/dashboard/manager-summary` | MANAGER (KPIs, resgates, comissão por item, destaques) |
 | GET | `/dashboard/station-ranking` | ATTENDANT/MANAGER (próprio posto) / OWNER (`?stationId=`) |
 | GET | `/dashboard/network-ranking` | MANAGER / OWNER |
 | GET | `/dashboard/hall-of-fame` | ATTENDANT / MANAGER / OWNER (mês anterior por padrão, ou `?month=YYYY-MM`) |
+| GET | `/badges` | ATTENDANT (conquistas do próprio frentista) |
 
 ## Próximos passos sugeridos
 

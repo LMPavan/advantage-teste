@@ -9,23 +9,27 @@ const ROLE_LABEL: Record<string, string> = {
   ATTENDANT: "Frentista",
 };
 
-const NAV_BY_ROLE: Record<string, { to: string; label: string }[]> = {
+const NAV_BY_ROLE: Record<string, { to: string; label: string; end?: boolean }[]> = {
   OWNER: [
-    { to: "/owner", label: "Visão executiva" },
+    { to: "/owner", label: "Dashboard", end: true },
+    { to: "/owner/ranking", label: "Ranking executivo" },
     { to: "/owner/stations", label: "Postos" },
     { to: "/owner/items", label: "Itens e comissionamento" },
+    { to: "/owner/redemptions", label: "Resgates" },
     { to: "/owner/hall-of-fame", label: "🏆 Mural" },
   ],
   MANAGER: [
-    { to: "/manager", label: "Equipe e metas" },
+    { to: "/manager", label: "Dashboard", end: true },
+    { to: "/manager/team", label: "Equipe e metas" },
     { to: "/manager/redemptions", label: "Resgates" },
     { to: "/manager/ranking", label: "🏆 Ranking da rede" },
     { to: "/manager/hall-of-fame", label: "🏆 Mural" },
   ],
   ATTENDANT: [
-    { to: "/attendant", label: "Minhas metas" },
+    { to: "/attendant", label: "Minhas metas", end: true },
     { to: "/attendant/redemptions", label: "Resgates" },
     { to: "/attendant/ranking", label: "🏆 Ranking do posto" },
+    { to: "/attendant/badges", label: "🎖️ Conquistas" },
     { to: "/attendant/hall-of-fame", label: "🏆 Mural" },
   ],
 };
@@ -41,7 +45,12 @@ export function Shell({ children }: { children: ReactNode }) {
         <div className="brand">⛽ Metas Posto</div>
         <nav>
           {items.map((item) => (
-            <NavLink key={item.to} to={item.to} end className={({ isActive }) => (isActive ? "active" : "")}>
+            <NavLink
+              key={item.to}
+              to={item.to}
+              end={item.end ?? false}
+              className={({ isActive }) => (isActive ? "active" : "")}
+            >
               {item.label}
             </NavLink>
           ))}

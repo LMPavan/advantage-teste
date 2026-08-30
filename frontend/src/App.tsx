@@ -5,12 +5,16 @@ import { Shell } from "./components/Shell";
 import { AttendantGoals } from "./pages/AttendantGoals";
 import { AttendantRedemptions } from "./pages/AttendantRedemptions";
 import { AttendantRanking } from "./pages/AttendantRanking";
+import { AttendantBadges } from "./pages/AttendantBadges";
+import { ManagerDashboard } from "./pages/ManagerDashboard";
 import { ManagerTeam } from "./pages/ManagerTeam";
 import { ManagerRedemptions } from "./pages/ManagerRedemptions";
 import { ManagerRanking } from "./pages/ManagerRanking";
+import { OwnerDashboard } from "./pages/OwnerDashboard";
 import { OwnerExecutive } from "./pages/OwnerExecutive";
 import { OwnerStations } from "./pages/OwnerStations";
 import { OwnerItems } from "./pages/OwnerItems";
+import { OwnerRedemptions } from "./pages/OwnerRedemptions";
 import { HallOfFame } from "./pages/HallOfFame";
 import type { Role } from "./types";
 
@@ -63,6 +67,14 @@ export default function App() {
         }
       />
       <Route
+        path="/attendant/badges"
+        element={
+          <Protected roles={["ATTENDANT"]}>
+            <AttendantBadges />
+          </Protected>
+        }
+      />
+      <Route
         path="/attendant/hall-of-fame"
         element={
           <Protected roles={["ATTENDANT"]}>
@@ -73,6 +85,14 @@ export default function App() {
 
       <Route
         path="/manager"
+        element={
+          <Protected roles={["MANAGER"]}>
+            <ManagerDashboard />
+          </Protected>
+        }
+      />
+      <Route
+        path="/manager/team"
         element={
           <Protected roles={["MANAGER"]}>
             <ManagerTeam />
@@ -108,6 +128,14 @@ export default function App() {
         path="/owner"
         element={
           <Protected roles={["OWNER"]}>
+            <OwnerDashboard />
+          </Protected>
+        }
+      />
+      <Route
+        path="/owner/ranking"
+        element={
+          <Protected roles={["OWNER"]}>
             <OwnerExecutive />
           </Protected>
         }
@@ -125,6 +153,14 @@ export default function App() {
         element={
           <Protected roles={["OWNER"]}>
             <OwnerItems />
+          </Protected>
+        }
+      />
+      <Route
+        path="/owner/redemptions"
+        element={
+          <Protected roles={["OWNER"]}>
+            <OwnerRedemptions />
           </Protected>
         }
       />

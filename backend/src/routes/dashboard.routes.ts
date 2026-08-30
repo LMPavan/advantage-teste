@@ -2,13 +2,14 @@ import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../prisma";
 import { requireAuth, requireRole } from "../middleware/auth";
-import { computeGoalProgress, round2 } from "../services/commission.service";
+import { round2 } from "../services/commission.service";
 import {
   getAttendantRanking,
   getNetworkAttendantRanking,
   getStationRanking,
   monthRangeFromParam,
 } from "../services/ranking.service";
+import { getItemBreakdown, summarizeRedemptions, weightedAverage } from "../services/summary.service";
 
 export const dashboardRouter = Router();
 dashboardRouter.use(requireAuth);
@@ -98,5 +99,55 @@ dashboardRouter.get("/hall-of-fame", requireRole("ATTENDANT", "MANAGER", "OWNER"
     month: `${range.start.getFullYear()}-${String(range.start.getMonth() + 1).padStart(2, "0")}`,
     topAttendants: attendantRankings.filter((a) => a.goalsCount > 0).slice(0, 3),
     topStations: stationRankings.filter((s) => s.attendantsCount > 0).slice(0, 3),
+  });
+});
+
+// Painel do dono: KPIs consolidados de toda a rede no período atual.
+dashboardRouter.get("/owner-summary", requireRole("OWNER"), async (req, res) => {
+  const networkId = req.auth!.networkId!;
+
+  const stations = await prisma.station.findMany({ where: { networkId }, select: { id: true } });
+  const stationIds = stations.map((s) => s.id);
+
+  const [managersCount, attendantsCount, itemBreakdown, redemptions, stationRankings] = await Promise.all([
+    prisma.station.count({ where: { networkId, managerId: { not: null } } }),
+    prisma.user.count({ where: { role: "ATTENDANT", stationId: { in: stationIds } } }),
+    getItemBreakdown({ stationId: { in: stationIds } }),
+    prisma.redemption.findMany({ where: { stationId: { in: stationIds } }, select: { status: true, commissionAmount: true } }),
+    getStationRanking(networkId),
+  ]);
+
+  return res.json({
+    stationsCount: stations.length,
+    managersCount,
+    attendantsCount,
+    totalCommission: round2(itemBreakdown.reduce((sum, i) => sum + i.totalCommission, 0)),
+    avgAchievement: weightedAverage(itemBreakdown),
+    itemBreakdown,
+    redemptionSummary: summarizeRedemptions(redemptions),
+    bestStation: stationRankings[0] ?? null,
+    worstStation: stationRankings.length > 1 ? stationRankings[stationRankings.length - 1] : null,
+  });
+});
+
+// Painel do gerente: KPIs consolidados do próprio posto no período atual.
+dashboardRouter.get("/manager-summary", requireRole("MANAGER"), async (req, res) => {
+  const stationId = req.auth!.stationId!;
+
+  const [attendantsCount, itemBreakdown, redemptions, attendantRanking] = await Promise.all([
+    prisma.user.count({ where: { role: "ATTENDANT", stationId } }),
+    getItemBreakdown({ stationId }),
+    prisma.redemption.findMany({ where: { stationId }, select: { status: true, commissionAmount: true } }),
+    getAttendantRanking(stationId),
+  ]);
+
+  return res.json({
+    attendantsCount,
+    totalCommission: round2(itemBreakdown.reduce((sum, i) => sum + i.totalCommission, 0)),
+    avgAchievement: weightedAverage(itemBreakdown),
+    itemBreakdown,
+    redemptionSummary: summarizeRedemptions(redemptions),
+    topAttendant: attendantRanking[0] ?? null,
+    attendantNeedingAttention: attendantRanking.length > 1 ? attendantRanking[attendantRanking.length - 1] : null,
   });
 });
