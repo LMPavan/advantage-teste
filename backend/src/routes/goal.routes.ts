@@ -2,7 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../prisma";
 import { requireAuth, requireRole } from "../middleware/auth";
-import { computeDailyCommissionEstimate, computeGoalProgress, round2 } from "../services/commission.service";
+import { computeDailyCommissionEstimate, computeGoalProgress, computeTodayProgress, round2 } from "../services/commission.service";
 import { currentRange } from "../services/ranking.service";
 
 /** Confere se o usuário autenticado pode ver esta meta (mesmo posto para ATTENDANT/MANAGER, mesma rede para OWNER). */
@@ -59,9 +59,12 @@ goalRouter.post("/", requireRole("MANAGER", "OWNER"), async (req, res) => {
   }
 
   if (data.attendantId) {
-    const attendant = await prisma.user.findUnique({ where: { id: data.attendantId } });
-    if (!attendant || attendant.stationId !== targetStationId) {
-      return res.status(400).json({ error: "Frentista inválido para este posto." });
+    // Aceita um frentista do posto ou o próprio gerente do posto (meta pessoal de comissão personalizada).
+    const assignee = await prisma.user.findUnique({ where: { id: data.attendantId } });
+    const isValidAttendant = assignee?.role === "ATTENDANT" && assignee.stationId === targetStationId;
+    const isValidManager = assignee?.role === "MANAGER" && station.managerId === assignee.id;
+    if (!assignee || (!isValidAttendant && !isValidManager)) {
+      return res.status(400).json({ error: "Frentista ou gerente inválido para este posto." });
     }
   }
 
@@ -73,7 +76,8 @@ goalRouter.post("/", requireRole("MANAGER", "OWNER"), async (req, res) => {
       period: data.period,
       targetValue: data.targetValue,
       startDate: new Date(data.startDate),
-      endDate: new Date(data.endDate),
+      // Fim do dia (não meia-noite) para a meta continuar ativa até o fim do último dia do período.
+      endDate: new Date(`${data.endDate}T23:59:59.999Z`),
       createdById: req.auth!.userId,
     },
     include: { item: true, attendant: { select: { id: true, name: true, email: true } } },
@@ -106,12 +110,18 @@ goalRouter.get("/", async (req, res) => {
 
   const goals = await prisma.goal.findMany({
     where,
-    include: { item: true, attendant: { select: { id: true, name: true, email: true } }, station: true },
+    include: { item: true, attendant: { select: { id: true, name: true, email: true } }, station: true, entries: true },
     orderBy: { startDate: "desc" },
   });
 
+  const todayIso = new Date().toISOString().slice(0, 10);
   const withProgress = await Promise.all(
-    goals.map(async (goal) => ({ ...goal, progress: await computeGoalProgress(goal.id) }))
+    goals.map(async (goal) => {
+      const { entries, ...rest } = goal;
+      const progress = await computeGoalProgress(goal.id);
+      const today = computeTodayProgress(goal.item, entries, todayIso);
+      return { ...rest, progress, today };
+    })
   );
 
   return res.json(withProgress);
@@ -177,7 +187,10 @@ goalRouter.get("/:id/daily", async (req, res) => {
       value: isMix ? null : round2(agg.value),
       comumLiters: isMix ? round2(agg.comumLiters) : null,
       aditivadaLiters: isMix ? round2(agg.aditivadaLiters) : null,
-      ratio: isMix && agg.aditivadaLiters > 0 ? round2((agg.comumLiters + agg.aditivadaLiters) / agg.aditivadaLiters) : null,
+      ratio:
+        isMix && agg.comumLiters + agg.aditivadaLiters > 0
+          ? round2((agg.aditivadaLiters / (agg.comumLiters + agg.aditivadaLiters)) * 100)
+          : null,
       estimatedCommission: computeDailyCommissionEstimate(goal.item, agg),
     }));
 

@@ -251,3 +251,37 @@ stationRouter.patch("/:id/permissions", requireRole("OWNER"), async (req, res) =
     managerCanRegenerateInviteCode: updated.managerCanRegenerateInviteCode,
   });
 });
+
+const managerCommissionSchema = z.object({
+  managerCommissionMode: z.enum(["NONE", "TEAM_SUM", "CUSTOM"]),
+  managerCommissionPercent: z.number().min(0).max(1000).optional(),
+});
+
+// Só o dono da rede decide como o gerente deste posto ganha comissão: nenhuma, percentual sobre a
+// soma da equipe, ou personalizada (metas próprias cadastradas pelo dono, como as de um frentista).
+stationRouter.patch("/:id/manager-commission", requireRole("OWNER"), async (req, res) => {
+  const parsed = managerCommissionSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Dados inválidos.", details: parsed.error.flatten() });
+  }
+
+  const station = await prisma.station.findUnique({ where: { id: req.params.id } });
+  if (!station) return res.status(404).json({ error: "Posto não encontrado." });
+  if (station.networkId !== req.auth!.networkId) {
+    return res.status(403).json({ error: "Sem acesso a este posto." });
+  }
+
+  const updated = await prisma.station.update({
+    where: { id: station.id },
+    data: {
+      managerCommissionMode: parsed.data.managerCommissionMode,
+      ...(parsed.data.managerCommissionPercent !== undefined
+        ? { managerCommissionPercent: parsed.data.managerCommissionPercent }
+        : {}),
+    },
+  });
+  return res.json({
+    managerCommissionMode: updated.managerCommissionMode,
+    managerCommissionPercent: updated.managerCommissionPercent,
+  });
+});

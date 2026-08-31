@@ -1,17 +1,73 @@
 import { useEffect, useState } from "react";
 import { api } from "../api/client";
-import type { ExecutiveDashboard } from "../types";
+import type { AttendantRankingRow, ExecutiveDashboard, Item, ItemAttendantRankingRow, ManagerCommissionRow } from "../types";
 import { AchievementBadge } from "../components/ProgressBar";
 import { Medal, tierForRank } from "../components/Leaderboard";
 
 const GAMIFICATION_MIN_STATIONS = 3;
 
+function isItemRow(row: AttendantRankingRow | ItemAttendantRankingRow): row is ItemAttendantRankingRow {
+  return "itemName" in row;
+}
+
+const MANAGER_MODE_LABEL: Record<string, string> = {
+  NONE: "Sem comissão",
+  TEAM_SUM: "% da equipe",
+  CUSTOM: "Personalizada",
+};
+
+function ManagerCommissionsTable() {
+  const [rows, setRows] = useState<ManagerCommissionRow[] | null>(null);
+
+  useEffect(() => {
+    api.get<ManagerCommissionRow[]>("/dashboard/manager-commissions").then(setRows);
+  }, []);
+
+  return (
+    <div className="card section">
+      <h2>Comissão dos gerentes</h2>
+      <p className="subtitle" style={{ marginTop: 0 }}>
+        Como cada gerente ganha comissão neste período, conforme configurado em Postos.
+      </p>
+      <table className="table">
+        <thead>
+          <tr>
+            <th>Posto</th>
+            <th>Gerente</th>
+            <th>Modo</th>
+            <th>Comissão</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows?.map((r) => (
+            <tr key={r.stationId}>
+              <td>{r.stationName}</td>
+              <td>{r.managerName ?? "—"}</td>
+              <td>{r.commission ? MANAGER_MODE_LABEL[r.commission.mode] : "—"}</td>
+              <td>R$ {(r.commission?.totalCommission ?? 0).toFixed(2)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {rows && rows.length === 0 && <p>Nenhum posto com gerente cadastrado ainda.</p>}
+    </div>
+  );
+}
+
 export function OwnerExecutive() {
+  const [items, setItems] = useState<Item[]>([]);
+  const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [data, setData] = useState<ExecutiveDashboard | null>(null);
 
   useEffect(() => {
-    api.get<ExecutiveDashboard>("/dashboard/executive").then(setData);
+    api.get<Item[]>("/items").then(setItems);
   }, []);
+
+  useEffect(() => {
+    setData(null);
+    const query = selectedItemId ? `?itemId=${selectedItemId}` : "";
+    api.get<ExecutiveDashboard>(`/dashboard/executive${query}`).then(setData);
+  }, [selectedItemId]);
 
   const stationsGamified = (data?.stationRankings.length ?? 0) > GAMIFICATION_MIN_STATIONS;
 
@@ -30,6 +86,24 @@ export function OwnerExecutive() {
           <span className="label">Comissão total gerada</span>
         </div>
       </div>
+
+      <ManagerCommissionsTable />
+
+      <div className="role-picker section" style={{ flexWrap: "wrap" }}>
+        <button className={selectedItemId === null ? "active" : ""} onClick={() => setSelectedItemId(null)}>
+          Ranking geral
+        </button>
+        {items.map((item) => (
+          <button key={item.id} className={selectedItemId === item.id ? "active" : ""} onClick={() => setSelectedItemId(item.id)}>
+            {item.name}
+          </button>
+        ))}
+      </div>
+      {selectedItemId && (
+        <p className="subtitle" style={{ marginTop: 0 }}>
+          Mostrando postos e frentistas apenas pelo desempenho neste item, no período atual.
+        </p>
+      )}
 
       <div className="card section">
         <h2>Ranking de postos</h2>
@@ -80,7 +154,7 @@ export function OwnerExecutive() {
               <th>#</th>
               <th>Frentista</th>
               <th>Posto</th>
-              <th>Metas</th>
+              <th>{selectedItemId ? "Realizado" : "Metas"}</th>
               <th>Atingimento médio</th>
               <th>Comissão gerada</th>
             </tr>
@@ -95,11 +169,11 @@ export function OwnerExecutive() {
                   </td>
                   <td>{a.name}</td>
                   <td>{a.stationName}</td>
-                  <td>{a.goalsCount}</td>
+                  <td>{isItemRow(a) ? `${a.actualValue} / ${a.targetValue} ${a.unit}` : a.goalsCount}</td>
                   <td>
-                    <AchievementBadge percent={a.avgAchievement} />
+                    <AchievementBadge percent={isItemRow(a) ? a.achievementPercent : a.avgAchievement} />
                   </td>
-                  <td>R$ {a.totalCommission.toFixed(2)}</td>
+                  <td>R$ {(isItemRow(a) ? a.commissionAmount : a.totalCommission).toFixed(2)}</td>
                 </tr>
               );
             })}

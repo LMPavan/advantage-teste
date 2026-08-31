@@ -4,11 +4,11 @@ import type { CommissionType, GoalDirection, Item, ItemCalculationType, PayoutMo
 
 const CALC_LABEL: Record<ItemCalculationType, string> = {
   SIMPLE: "Valor direto (litros, unidades ou R$)",
-  MIX_RATIO: "Mix: (comum + aditivada) / aditivada",
+  MIX_RATIO: "Mix: % de penetração da aditivada = aditivada / (comum + aditivada)",
 };
 const DIRECTION_LABEL: Record<GoalDirection, string> = {
-  HIGHER_IS_BETTER: "Maior é melhor",
-  LOWER_IS_BETTER: "Menor é melhor (ex.: mix)",
+  HIGHER_IS_BETTER: "Maior é melhor (ex.: mix, volume)",
+  LOWER_IS_BETTER: "Menor é melhor",
 };
 const COMMISSION_LABEL: Record<CommissionType, string> = {
   CENTS_PER_LITER: "Centavos por litro",

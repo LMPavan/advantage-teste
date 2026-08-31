@@ -32,20 +32,22 @@ export function aggregateEntries(
 /**
  * Valor realizado do item a partir dos lançamentos agregados.
  * - SIMPLE: soma direta dos valores lançados (litros, unidades ou R$).
- * - MIX_RATIO: (comum + aditivada) / aditivada.
+ * - MIX_RATIO: % de penetração da aditivada = aditivada / (comum + aditivada) * 100.
+ *   Quanto maior, melhor (mais aditivada em relação ao total vendido).
  */
 export function computeActualValue(item: Pick<Item, "calculationType">, agg: EntryAggregate): number {
   if (item.calculationType === "MIX_RATIO") {
-    if (agg.aditivadaLitersTotal <= 0) return 0;
-    return (agg.comumLitersTotal + agg.aditivadaLitersTotal) / agg.aditivadaLitersTotal;
+    const total = agg.comumLitersTotal + agg.aditivadaLitersTotal;
+    if (total <= 0) return 0;
+    return (agg.aditivadaLitersTotal / total) * 100;
   }
   return agg.simpleTotal;
 }
 
 /**
  * Percentual de atingimento da meta.
- * Para itens "HIGHER_IS_BETTER" (padrão): atual / meta.
- * Para itens "LOWER_IS_BETTER" (ex.: mix, quanto menor melhor): meta / atual.
+ * Para itens "HIGHER_IS_BETTER" (padrão, inclui mix): atual / meta.
+ * Para itens "LOWER_IS_BETTER": meta / atual.
  */
 export function computeAchievementPercent(
   actualValue: number,
@@ -146,6 +148,32 @@ export function computeDailyCommissionEstimate(
     default:
       return 0; // não decompõe por dia: só existe ao fechar o período.
   }
+}
+
+export interface TodayProgress {
+  actualValue: number;
+  estimatedCommission: number;
+}
+
+/**
+ * Progresso do dia: agrega só os lançamentos da meta feitos numa data específica (padrão: hoje), para
+ * o frentista acompanhar o ritmo diário lado a lado com o acumulado do período (goal.progress).
+ */
+export function computeTodayProgress(
+  item: Pick<Item, "calculationType" | "commissionType" | "commissionValue">,
+  entries: { date: Date; value: any; comumLiters: any; aditivadaLiters: any }[],
+  dateIso: string
+): TodayProgress {
+  const todaysEntries = entries.filter((e) => e.date.toISOString().slice(0, 10) === dateIso);
+  const agg = aggregateEntries(todaysEntries);
+  return {
+    actualValue: round2(computeActualValue(item, agg)),
+    estimatedCommission: computeDailyCommissionEstimate(item, {
+      value: agg.simpleTotal,
+      comumLiters: agg.comumLitersTotal,
+      aditivadaLiters: agg.aditivadaLitersTotal,
+    }),
+  };
 }
 
 /** Calcula o progresso completo de uma meta (usa os lançamentos já filtrados pelo período desejado). */

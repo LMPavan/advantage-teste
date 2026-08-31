@@ -27,6 +27,20 @@ export function ManagerDashboard() {
         <KpiCard value={data ? `R$ ${data.totalCommission.toFixed(2)}` : "-"} label="Comissão gerada no período" />
       </div>
 
+      {data?.managerCommission && data.managerCommission.mode !== "NONE" && (
+        <div className="card section">
+          <h2>💰 Sua comissão de gerente</h2>
+          <p className="subtitle" style={{ marginTop: 0 }}>
+            {data.managerCommission.mode === "TEAM_SUM"
+              ? `${data.managerCommission.percent}% sobre a comissão gerada pela equipe (R$ ${data.managerCommission.teamCommission.toFixed(2)}).`
+              : "Calculada pelas suas metas pessoais, definidas pelo dono da rede."}
+          </p>
+          <span className="value" style={{ fontSize: "1.8rem" }}>
+            R$ {data.managerCommission.totalCommission.toFixed(2)}
+          </span>
+        </div>
+      )}
+
       <div className="section">
         <h2>Fila de resgates</h2>
         {data && <RedemptionSummaryCards summary={data.redemptionSummary} />}

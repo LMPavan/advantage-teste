@@ -38,9 +38,9 @@ docker-compose.yml   Postgres local para desenvolvimento
 
 ## Modelo de negócio
 
-- **Mix de aditivada**: `(gasolina comum + gasolina aditivada) / gasolina aditivada`. Quanto menor,
-  melhor a penetração de aditivada — por isso o item usa a direção "menor é melhor". A comissão é em
-  **centavos por litro** de aditivada vendido.
+- **Mix de aditivada**: `gasolina aditivada / (gasolina comum + gasolina aditivada) × 100`, o
+  percentual de penetração da aditivada nas vendas. Quanto maior, melhor — por isso o item usa a
+  direção "maior é melhor". A comissão é em **centavos por litro** de aditivada vendido.
 - **Lubrificantes**: comissão em **R$ por litro**.
 - **Palhetas / Cheirinho**: comissão em **R$ por unidade**.
 - **Volume vendido**: métrica geral de litros, também comissionável.

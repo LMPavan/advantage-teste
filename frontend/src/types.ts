@@ -10,6 +10,7 @@ export type CommissionType =
   | "FIXED_PER_PERIOD";
 export type PayoutMode = "THRESHOLD" | "PROPORTIONAL";
 export type RedemptionStatus = "PENDING" | "APPROVED" | "REJECTED" | "PAID";
+export type ManagerCommissionMode = "NONE" | "TEAM_SUM" | "CUSTOM";
 
 export interface AuthUser {
   id: string;
@@ -43,6 +44,11 @@ export interface GoalProgress {
   commissionAmount: number;
 }
 
+export interface TodayProgress {
+  actualValue: number;
+  estimatedCommission: number;
+}
+
 export interface Goal {
   id: string;
   stationId: string;
@@ -56,6 +62,7 @@ export interface Goal {
   attendant: { id: string; name: string; email: string; photoUrl?: string | null } | null;
   station?: { id: string; name: string };
   progress: GoalProgress;
+  today: TodayProgress;
 }
 
 export interface RedemptionPolicy {
@@ -82,6 +89,8 @@ export interface Station {
   managerCanManageTeam: boolean;
   managerCanManageRedemptionPolicy: boolean;
   managerCanRegenerateInviteCode: boolean;
+  managerCommissionMode: ManagerCommissionMode;
+  managerCommissionPercent: string;
 }
 
 export interface Attendant {
@@ -133,7 +142,25 @@ export interface ExecutiveDashboard {
   stationsCount: number;
   totalCommission: number;
   stationRankings: StationRankingRow[];
-  attendantRankings: AttendantRankingRow[];
+  attendantRankings: (AttendantRankingRow | ItemAttendantRankingRow)[];
+  itemFiltered: boolean;
+}
+
+export interface ManagerCommissionSummary {
+  mode: ManagerCommissionMode;
+  percent: number;
+  teamCommission: number;
+  personalCommission: number;
+  totalCommission: number;
+}
+
+export interface ManagerCommissionRow {
+  stationId: string;
+  stationName: string;
+  managerId: string | null;
+  managerName: string | null;
+  managerPhotoUrl?: string | null;
+  commission: ManagerCommissionSummary | null;
 }
 
 export interface TeamDashboard {
@@ -189,6 +216,7 @@ export interface ManagerSummary {
   redemptionSummary: RedemptionSummary;
   topAttendant: AttendantRankingRow | null;
   attendantNeedingAttention: AttendantRankingRow | null;
+  managerCommission: ManagerCommissionSummary | null;
 }
 
 export interface Badge {
@@ -225,6 +253,8 @@ export interface ItemAttendantRankingRow {
   attendantId: string;
   name: string;
   photoUrl?: string | null;
+  stationId: string;
+  stationName: string;
   itemId: string;
   itemName: string;
   unit: string;

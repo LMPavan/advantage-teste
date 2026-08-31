@@ -8,6 +8,7 @@ import { BadgeShelf } from "../components/BadgeGrid";
 import { Medal, tierForRank } from "../components/Leaderboard";
 import { Avatar } from "../components/Avatar";
 import { UnreadMessagesPopup } from "../components/UnreadMessagesPopup";
+import { CommissionInfoButton } from "../components/CommissionInfoButton";
 
 const PERIOD_LABEL: Record<string, string> = { DAILY: "Diária", WEEKLY: "Semanal", MONTHLY: "Mensal" };
 
@@ -196,7 +197,9 @@ export function AttendantGoals() {
             <div className="card" key={goal.id}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start" }}>
                 <div>
-                  <h2 style={{ marginBottom: "0.1rem" }}>{goal.item.name}</h2>
+                  <h2 style={{ marginBottom: "0.1rem", display: "flex", alignItems: "center", gap: "0.4rem" }}>
+                    {goal.item.name} <CommissionInfoButton item={goal.item} />
+                  </h2>
                   <span className="badge neutral">{PERIOD_LABEL[goal.period]}</span>{" "}
                   {!goal.item.linkedToGoal && (
                     <span className="badge ok" title="Você recebe por unidade vendida, mesmo sem bater a meta.">
@@ -207,15 +210,25 @@ export function AttendantGoals() {
                 <AchievementBadge percent={goal.progress.achievementPercent} />
               </div>
 
-              <p className="subtitle" style={{ margin: "0.6rem 0" }}>
-                Realizado: <strong>{goal.progress.actualValue}</strong> {goal.item.unit} · Meta:{" "}
-                <strong>{goal.progress.targetValue}</strong> {goal.item.unit}
-              </p>
+              <div className="grid cols-2" style={{ margin: "0.6rem 0", gap: "0.5rem" }}>
+                <div className="card stat" style={{ padding: "0.5rem 0.7rem" }}>
+                  <span className="value" style={{ fontSize: "1.1rem" }}>
+                    {goal.today.actualValue} {goal.item.unit}
+                  </span>
+                  <span className="label">Hoje · R$ {goal.today.estimatedCommission.toFixed(2)} de ritmo</span>
+                </div>
+                <div className="card stat" style={{ padding: "0.5rem 0.7rem" }}>
+                  <span className="value" style={{ fontSize: "1.1rem" }}>
+                    {goal.progress.actualValue} / {goal.progress.targetValue} {goal.item.unit}
+                  </span>
+                  <span className="label">Acumulado do mês</span>
+                </div>
+              </div>
               <ProgressBar percent={goal.progress.achievementPercent} />
               <p className={`goal-remaining ${remaining.done ? "done" : "pending"}`}>{remaining.text}</p>
 
               <p style={{ marginTop: "0.4rem", fontSize: "0.9rem" }}>
-                Comissão gerada: <strong>R$ {goal.progress.commissionAmount.toFixed(2)}</strong>
+                Comissão gerada no mês: <strong>R$ {goal.progress.commissionAmount.toFixed(2)}</strong>
               </p>
 
               <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, ApiError } from "../api/client";
-import type { Station } from "../types";
+import type { ManagerCommissionMode, Station } from "../types";
 
 function NewStationForm({ onCreated }: { onCreated: () => void }) {
   const [name, setName] = useState("");
@@ -210,6 +210,63 @@ function ManagerPermissionsEditor({ station, onUpdated }: { station: Station; on
   );
 }
 
+const MANAGER_COMMISSION_LABEL: Record<ManagerCommissionMode, string> = {
+  NONE: "Sem comissão",
+  TEAM_SUM: "Percentual sobre a soma da comissão da equipe",
+  CUSTOM: "Personalizada (metas próprias do gerente)",
+};
+
+function ManagerCommissionEditor({ station, onUpdated }: { station: Station; onUpdated: () => void }) {
+  const [mode, setMode] = useState<ManagerCommissionMode>(station.managerCommissionMode);
+  const [percent, setPercent] = useState(station.managerCommissionPercent);
+  const [saving, setSaving] = useState(false);
+
+  async function save() {
+    setSaving(true);
+    try {
+      await api.patch(`/stations/${station.id}/manager-commission`, {
+        managerCommissionMode: mode,
+        managerCommissionPercent: Number(percent),
+      });
+      onUpdated();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="grid cols-2">
+      <div className="field">
+        <label>Como o gerente ganha comissão</label>
+        <select className="input" value={mode} onChange={(e) => setMode(e.target.value as ManagerCommissionMode)}>
+          {Object.entries(MANAGER_COMMISSION_LABEL).map(([k, v]) => (
+            <option key={k} value={k}>
+              {v}
+            </option>
+          ))}
+        </select>
+      </div>
+      {mode === "TEAM_SUM" && (
+        <div className="field">
+          <label>Percentual sobre a comissão da equipe (%)</label>
+          <input className="input" type="number" step="1" value={percent} onChange={(e) => setPercent(e.target.value)} />
+        </div>
+      )}
+      {mode === "CUSTOM" && (
+        <p className="subtitle" style={{ margin: 0, gridColumn: "1 / -1" }}>
+          Cadastre uma meta pessoal para o gerente em "Equipe e metas" (tela do gerente), escolhendo o
+          próprio gerente como responsável — a comissão é calculada como a de um frentista.
+        </p>
+      )}
+      <div style={{ gridColumn: mode === "TEAM_SUM" ? "1 / -1" : undefined }}>
+        <button className="btn small" onClick={save} disabled={saving}>
+          {saving ? "Salvando..." : "Salvar"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function StationRow({ station, onUpdated }: { station: Station; onUpdated: () => void }) {
   const [expanded, setExpanded] = useState(false);
 
@@ -244,6 +301,14 @@ function StationRow({ station, onUpdated }: { station: Station; onUpdated: () =>
                   O que o gerente deste posto pode cadastrar e editar. O dono sempre pode tudo, independente destas opções.
                 </p>
                 <ManagerPermissionsEditor station={station} onUpdated={onUpdated} />
+              </div>
+              <div className="card" style={{ gridColumn: "1 / -1" }}>
+                <h2 style={{ marginBottom: "0.2rem" }}>Comissão do gerente</h2>
+                <p className="subtitle" style={{ marginTop: 0 }}>
+                  O gerente também pode ganhar comissão: como percentual sobre o total gerado pela
+                  equipe, ou de forma personalizada, com metas próprias.
+                </p>
+                <ManagerCommissionEditor station={station} onUpdated={onUpdated} />
               </div>
             </div>
           </td>

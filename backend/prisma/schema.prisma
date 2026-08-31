@@ -56,6 +56,13 @@ enum RedemptionStatus {
   PAID
 }
 
+// Como a comissão do GERENTE de um posto é calculada, configurado pelo dono da rede.
+enum ManagerCommissionMode {
+  NONE // gerente não recebe comissão
+  TEAM_SUM // percentual configurado sobre a soma da comissão gerada pela equipe (frentistas) no período
+  CUSTOM // metas próprias do gerente (cadastradas pelo dono), calculadas como as de um frentista
+}
+
 // ---------------------------------------------------------------------------
 // Estrutura organizacional
 // ---------------------------------------------------------------------------
@@ -94,6 +101,11 @@ model Station {
   managerCanManageTeam              Boolean @default(true)
   managerCanManageRedemptionPolicy  Boolean @default(true)
   managerCanRegenerateInviteCode    Boolean @default(true)
+
+  // Como o gerente deste posto ganha comissão (configurado pelo dono da rede). TEAM_SUM: percentual
+  // sobre a soma da comissão da equipe. CUSTOM: metas próprias do gerente, como as de um frentista.
+  managerCommissionMode    ManagerCommissionMode @default(TEAM_SUM)
+  managerCommissionPercent Decimal               @default(100) @db.Decimal(5, 2)
 
   attendants       User[]            @relation("StationAttendants")
   goals            Goal[]

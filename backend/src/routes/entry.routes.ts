@@ -33,12 +33,18 @@ entryRouter.post("/", requireRole("ATTENDANT", "MANAGER"), async (req, res) => {
 
   let attendantId = userId;
   if (role === "MANAGER") {
-    if (!data.attendantId) return res.status(400).json({ error: "Informe o frentista (attendantId)." });
-    const attendant = await prisma.user.findUnique({ where: { id: data.attendantId } });
-    if (!attendant || attendant.stationId !== stationId) {
-      return res.status(400).json({ error: "Frentista inválido para este posto." });
+    if (data.attendantId && data.attendantId !== userId) {
+      const attendant = await prisma.user.findUnique({ where: { id: data.attendantId } });
+      if (!attendant || attendant.stationId !== stationId) {
+        return res.status(400).json({ error: "Frentista inválido para este posto." });
+      }
+      attendantId = data.attendantId;
+    } else if (goal.attendantId === userId) {
+      // Meta pessoal do próprio gerente (comissão personalizada).
+      attendantId = userId;
+    } else {
+      return res.status(400).json({ error: "Informe o frentista (attendantId)." });
     }
-    attendantId = data.attendantId;
   } else if (goal.attendantId && goal.attendantId !== userId) {
     return res.status(403).json({ error: "Esta meta pertence a outro frentista." });
   }

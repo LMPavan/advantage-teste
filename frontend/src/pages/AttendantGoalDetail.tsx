@@ -4,6 +4,7 @@ import { api } from "../api/client";
 import type { DailyGoalDetail, Goal } from "../types";
 import { DailyBarChart } from "../components/DailyBarChart";
 import { AchievementBadge, ProgressBar } from "../components/ProgressBar";
+import { CommissionInfoButton } from "../components/CommissionInfoButton";
 
 type PeriodMode = "WEEK" | "MONTH" | "CUSTOM";
 
@@ -67,7 +68,10 @@ export function AttendantGoalDetail() {
       <Link to="/attendant" className="btn secondary small" style={{ marginBottom: "1rem", display: "inline-block" }}>
         ← Voltar para minhas metas
       </Link>
-      <h1>{goal?.item.name ?? "Detalhe do item"}</h1>
+      <h1 style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+        {goal?.item.name ?? "Detalhe do item"}
+        {goal && <CommissionInfoButton item={goal.item} />}
+      </h1>
       <p className="subtitle">Veja quanto você fez por dia e o ritmo de comissão gerado.</p>
 
       {goal && (
@@ -155,7 +159,7 @@ export function AttendantGoalDetail() {
                     <>
                       <th>Comum (L)</th>
                       <th>Aditivada (L)</th>
-                      <th>Razão do dia</th>
+                      <th>% Aditivada do dia</th>
                     </>
                   ) : (
                     <th>Valor ({detail.unit})</th>
@@ -171,7 +175,7 @@ export function AttendantGoalDetail() {
                       <>
                         <td>{d.comumLiters}</td>
                         <td>{d.aditivadaLiters}</td>
-                        <td>{d.ratio ?? "—"}</td>
+                        <td>{d.ratio !== null ? `${d.ratio}%` : "—"}</td>
                       </>
                     ) : (
                       <td>{d.value}</td>

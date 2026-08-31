@@ -8,13 +8,13 @@ function startOfMonth(d = new Date()) {
   return new Date(d.getFullYear(), d.getMonth(), 1);
 }
 function endOfMonth(d = new Date()) {
-  return new Date(d.getFullYear(), d.getMonth() + 1, 0);
+  return new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59, 999);
 }
 function startOfPrevMonth(d = new Date()) {
   return new Date(d.getFullYear(), d.getMonth() - 1, 1);
 }
 function endOfPrevMonth(d = new Date()) {
-  return new Date(d.getFullYear(), d.getMonth(), 0);
+  return new Date(d.getFullYear(), d.getMonth(), 0, 23, 59, 59, 999);
 }
 function daysAgo(n: number) {
   const d = new Date();
@@ -50,10 +50,10 @@ async function main() {
     data: {
       networkId: network.id,
       name: "Mix Aditivada",
-      description: "(Gasolina comum + aditivada) / aditivada. Quanto menor, melhor a penetração de aditivada.",
-      unit: "razão",
+      description: "% de penetração da aditivada: aditivada / (comum + aditivada). Quanto maior, melhor.",
+      unit: "%",
       calculationType: "MIX_RATIO",
-      direction: "LOWER_IS_BETTER",
+      direction: "HIGHER_IS_BETTER",
       commissionType: "CENTS_PER_LITER",
       commissionValue: 3, // 3 centavos por litro de aditivada vendido
       payoutMode: "PROPORTIONAL",
@@ -201,14 +201,14 @@ async function main() {
   }
 
   const goalsAttendant1 = {
-    mix: await createGoal(mixItem.id, attendant1.id, 1.4),
+    mix: await createGoal(mixItem.id, attendant1.id, 60),
     lub: await createGoal(lubItem.id, attendant1.id, 40),
     palhetas: await createGoal(palhetasItem.id, attendant1.id, 20),
     cheirinho: await createGoal(cheirinhoItem.id, attendant1.id, 30),
     volume: await createGoal(volumeItem.id, attendant1.id, 12000),
   };
   const goalsAttendant2 = {
-    mix: await createGoal(mixItem.id, attendant2.id, 1.4),
+    mix: await createGoal(mixItem.id, attendant2.id, 60),
     lub: await createGoal(lubItem.id, attendant2.id, 40),
     palhetas: await createGoal(palhetasItem.id, attendant2.id, 20),
     cheirinho: await createGoal(cheirinhoItem.id, attendant2.id, 30),

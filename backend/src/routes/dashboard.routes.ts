@@ -4,8 +4,10 @@ import { prisma } from "../prisma";
 import { requireAuth, requireRole } from "../middleware/auth";
 import { round2 } from "../services/commission.service";
 import {
+  computeManagerCommission,
   getAttendantItemRanking,
   getAttendantRanking,
+  getNetworkAttendantItemRanking,
   getNetworkAttendantRanking,
   getStationRanking,
   monthRangeFromParam,
@@ -16,12 +18,22 @@ export const dashboardRouter = Router();
 dashboardRouter.use(requireAuth);
 
 // Visão executiva do dono: ranking de postos/gerentes e de frentistas em toda a rede (período atual).
+// Com ?itemId=, os dois rankings passam a considerar só aquele item (ex.: só "Lubrificantes"), em vez
+// da média combinada de todos os itens — mesmo padrão do ranking do frentista por item.
 dashboardRouter.get("/executive", requireRole("OWNER"), async (req, res) => {
   const networkId = req.auth!.networkId!;
+  const itemId = req.query.itemId as string | undefined;
+
+  if (itemId) {
+    const item = await prisma.item.findUnique({ where: { id: itemId } });
+    if (!item || item.networkId !== networkId) {
+      return res.status(400).json({ error: "Item inválido para esta rede." });
+    }
+  }
 
   const [stationRankings, attendantRankings] = await Promise.all([
-    getStationRanking(networkId),
-    getNetworkAttendantRanking(networkId),
+    getStationRanking(networkId, undefined, itemId),
+    itemId ? getNetworkAttendantItemRanking(networkId, itemId) : getNetworkAttendantRanking(networkId),
   ]);
 
   return res.json({
@@ -29,6 +41,7 @@ dashboardRouter.get("/executive", requireRole("OWNER"), async (req, res) => {
     totalCommission: round2(stationRankings.reduce((sum, s) => sum + s.totalCommission, 0)),
     stationRankings,
     attendantRankings,
+    itemFiltered: !!itemId,
   });
 });
 
@@ -149,11 +162,12 @@ dashboardRouter.get("/owner-summary", requireRole("OWNER"), async (req, res) => 
 dashboardRouter.get("/manager-summary", requireRole("MANAGER"), async (req, res) => {
   const stationId = req.auth!.stationId!;
 
-  const [attendantsCount, itemBreakdown, redemptions, attendantRanking] = await Promise.all([
+  const [attendantsCount, itemBreakdown, redemptions, attendantRanking, managerCommission] = await Promise.all([
     prisma.user.count({ where: { role: "ATTENDANT", stationId } }),
     getItemBreakdown({ stationId }),
     prisma.redemption.findMany({ where: { stationId }, select: { status: true, commissionAmount: true } }),
     getAttendantRanking(stationId),
+    computeManagerCommission(stationId),
   ]);
 
   return res.json({
@@ -164,5 +178,31 @@ dashboardRouter.get("/manager-summary", requireRole("MANAGER"), async (req, res)
     redemptionSummary: summarizeRedemptions(redemptions),
     topAttendant: attendantRanking[0] ?? null,
     attendantNeedingAttention: attendantRanking.length > 1 ? attendantRanking[attendantRanking.length - 1] : null,
+    managerCommission,
   });
+});
+
+// Comissão de cada gerente da rede (visão do dono), conforme o modo configurado por posto.
+dashboardRouter.get("/manager-commissions", requireRole("OWNER"), async (req, res) => {
+  const networkId = req.auth!.networkId!;
+  const stations = await prisma.station.findMany({
+    where: { networkId },
+    include: { manager: { select: { id: true, name: true, photoUrl: true } } },
+    orderBy: { createdAt: "asc" },
+  });
+
+  const rows = await Promise.all(
+    stations
+      .filter((s) => s.managerId)
+      .map(async (station) => ({
+        stationId: station.id,
+        stationName: station.name,
+        managerId: station.managerId,
+        managerName: station.manager?.name ?? null,
+        managerPhotoUrl: station.manager?.photoUrl ?? null,
+        commission: await computeManagerCommission(station.id),
+      }))
+  );
+
+  return res.json(rows);
 });

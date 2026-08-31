@@ -94,6 +94,8 @@ export interface ItemAttendantRankingRow {
   attendantId: string;
   name: string;
   photoUrl: string | null;
+  stationId: string;
+  stationName: string;
   itemId: string;
   itemName: string;
   unit: string;
@@ -113,10 +115,13 @@ export async function getAttendantItemRanking(
   itemId: string,
   range: DateRange = currentRange()
 ): Promise<ItemAttendantRankingRow[]> {
-  const attendants = await prisma.user.findMany({
-    where: { role: "ATTENDANT", stationId },
-    select: { id: true, name: true, photoUrl: true },
-  });
+  const [attendants, station] = await Promise.all([
+    prisma.user.findMany({
+      where: { role: "ATTENDANT", stationId },
+      select: { id: true, name: true, photoUrl: true },
+    }),
+    prisma.station.findUniqueOrThrow({ where: { id: stationId }, select: { name: true } }),
+  ]);
   if (attendants.length === 0) return [];
 
   const goals = await prisma.goal.findMany({
@@ -141,6 +146,8 @@ export async function getAttendantItemRanking(
       attendantId: attendant.id,
       name: attendant.name,
       photoUrl: attendant.photoUrl,
+      stationId,
+      stationName: station.name,
       itemId: goal.itemId,
       itemName: goal.item.name,
       unit: goal.item.unit,
@@ -162,6 +169,65 @@ export async function getNetworkAttendantRanking(networkId: string, range: DateR
   return perStation.flat().sort((a, b) => b.avgAchievement - a.avgAchievement);
 }
 
+/** Ranking de frentistas de UM item específico em toda a rede (visão executiva do dono por item). */
+export async function getNetworkAttendantItemRanking(
+  networkId: string,
+  itemId: string,
+  range: DateRange = currentRange()
+): Promise<ItemAttendantRankingRow[]> {
+  const stations = await prisma.station.findMany({ where: { networkId }, select: { id: true } });
+  const perStation = await Promise.all(stations.map((s) => getAttendantItemRanking(s.id, itemId, range)));
+  return perStation.flat().sort((a, b) => b.achievementPercent - a.achievementPercent);
+}
+
+export interface ManagerCommissionSummary {
+  mode: "NONE" | "TEAM_SUM" | "CUSTOM";
+  percent: number;
+  teamCommission: number;
+  personalCommission: number;
+  totalCommission: number;
+}
+
+/**
+ * Comissão do gerente de um posto, conforme o modo configurado pelo dono da rede:
+ * - NONE: não recebe comissão.
+ * - TEAM_SUM: percentual configurado sobre a soma da comissão gerada pela equipe (frentistas) no período.
+ * - CUSTOM: soma da comissão das metas próprias do gerente (cadastradas pelo dono como as de um frentista).
+ */
+export async function computeManagerCommission(
+  stationId: string,
+  range: DateRange = currentRange()
+): Promise<ManagerCommissionSummary | null> {
+  const station = await prisma.station.findUnique({ where: { id: stationId } });
+  if (!station || !station.managerId) return null;
+
+  const percent = Number(station.managerCommissionPercent);
+
+  if (station.managerCommissionMode === "CUSTOM") {
+    const goals = await prisma.goal.findMany({
+      where: {
+        stationId,
+        attendantId: station.managerId,
+        startDate: { lte: range.end },
+        endDate: { gte: range.start },
+      },
+    });
+    const progresses = await Promise.all(goals.map((g) => computeGoalProgress(g.id)));
+    const personalCommission = round2(progresses.reduce((sum, p) => sum + p.commissionAmount, 0));
+    return { mode: "CUSTOM", percent, teamCommission: 0, personalCommission, totalCommission: personalCommission };
+  }
+
+  if (station.managerCommissionMode === "NONE") {
+    return { mode: "NONE", percent, teamCommission: 0, personalCommission: 0, totalCommission: 0 };
+  }
+
+  // TEAM_SUM
+  const teamRows = await getAttendantRanking(stationId, range);
+  const teamCommission = round2(teamRows.reduce((sum, r) => sum + r.totalCommission, 0));
+  const totalCommission = round2(teamCommission * (percent / 100));
+  return { mode: "TEAM_SUM", percent, teamCommission, personalCommission: 0, totalCommission };
+}
+
 export interface StationRankingRow {
   stationId: string;
   stationName: string;
@@ -173,8 +239,16 @@ export interface StationRankingRow {
   attendantsCount: number;
 }
 
-/** Ranking dos postos/gerentes de uma rede, restrito a um intervalo de datas (padrão: metas ativas agora). */
-export async function getStationRanking(networkId: string, range: DateRange = currentRange()): Promise<StationRankingRow[]> {
+/**
+ * Ranking dos postos/gerentes de uma rede, restrito a um intervalo de datas (padrão: metas ativas
+ * agora). Com itemId, considera só as metas daquele item (ex.: só "Lubrificantes"), em vez da média
+ * combinada de todos os itens do posto.
+ */
+export async function getStationRanking(
+  networkId: string,
+  range: DateRange = currentRange(),
+  itemId?: string
+): Promise<StationRankingRow[]> {
   const stations = await prisma.station.findMany({
     where: { networkId },
     include: {
@@ -189,6 +263,7 @@ export async function getStationRanking(networkId: string, range: DateRange = cu
       const goals = await prisma.goal.findMany({
         where: {
           stationId: station.id,
+          ...(itemId ? { itemId } : {}),
           startDate: { lte: range.end },
           endDate: { gte: range.start },
         },
