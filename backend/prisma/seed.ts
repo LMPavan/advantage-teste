@@ -35,6 +35,7 @@ async function main() {
   await prisma.redemptionPolicy.deleteMany();
   await prisma.station.deleteMany();
   await prisma.subscription.deleteMany();
+  await prisma.tournament.deleteMany();
   await prisma.network.deleteMany();
   await prisma.user.deleteMany();
 

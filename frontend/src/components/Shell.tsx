@@ -21,6 +21,7 @@ const NAV_BY_ROLE: Record<string, { to: string; label: string; end?: boolean; ba
     { to: "/owner/items-overview", label: "Atingimento por item" },
     { to: "/owner/employees", label: "Funcionários" },
     { to: "/owner/challenges", label: "⚡ Desafios e duelos" },
+    { to: "/owner/tournaments", label: "🏆 Torneios entre postos" },
     { to: "/owner/stations", label: "Postos" },
     { to: "/owner/items", label: "Itens e comissionamento" },
     { to: "/owner/billing", label: "Assinatura" },

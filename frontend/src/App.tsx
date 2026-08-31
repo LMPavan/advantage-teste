@@ -24,6 +24,7 @@ import { OwnerItemsOverview } from "./pages/OwnerItemsOverview";
 import { OwnerStationDetail } from "./pages/OwnerStationDetail";
 import { OwnerChallenges } from "./pages/OwnerChallenges";
 import { OwnerBilling } from "./pages/OwnerBilling";
+import { OwnerTournaments } from "./pages/OwnerTournaments";
 import { HallOfFame } from "./pages/HallOfFame";
 import { MessagesPage } from "./pages/Messages";
 import type { Role } from "./types";
@@ -251,6 +252,14 @@ export default function App() {
         element={
           <Protected roles={["OWNER"]}>
             <OwnerBilling />
+          </Protected>
+        }
+      />
+      <Route
+        path="/owner/tournaments"
+        element={
+          <Protected roles={["OWNER"]}>
+            <OwnerTournaments />
           </Protected>
         }
       />

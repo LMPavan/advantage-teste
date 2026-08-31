@@ -1,30 +1,35 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api/client";
-import type { BenchmarkResult, MonthlyHistoryPoint, OwnerSummary, PaceAlert } from "../types";
+import type { BenchmarkResult, MonthlyHistoryPoint, OwnerSummary, PaceAlert, Tournament } from "../types";
 import { HighlightCard, ItemBreakdownTable, KpiCard, RedemptionSummaryCards } from "../components/DashboardWidgets";
 import { UnreadMessagesPopup } from "../components/UnreadMessagesPopup";
 import { AlertsPanel } from "../components/AlertsPanel";
 import { MonthlyHistoryChart } from "../components/MonthlyHistoryChart";
 import { BenchmarkCard } from "../components/BenchmarkCard";
 import { CsvExportButton } from "../components/CsvExportButton";
+import { TournamentCard } from "../components/TournamentCard";
+import { WeeklyDigestModal } from "../components/WeeklyDigestModal";
 
 export function OwnerDashboard() {
   const [data, setData] = useState<OwnerSummary | null>(null);
   const [alerts, setAlerts] = useState<PaceAlert[]>([]);
   const [history, setHistory] = useState<MonthlyHistoryPoint[] | null>(null);
   const [benchmark, setBenchmark] = useState<BenchmarkResult | null>(null);
+  const [tournaments, setTournaments] = useState<Tournament[]>([]);
 
   useEffect(() => {
     api.get<OwnerSummary>("/dashboard/owner-summary").then(setData);
     api.get<PaceAlert[]>("/dashboard/alerts").then(setAlerts);
     api.get<MonthlyHistoryPoint[]>("/dashboard/history?months=6").then(setHistory);
     api.get<BenchmarkResult>("/dashboard/benchmark").then(setBenchmark);
+    api.get<Tournament[]>("/tournaments").then(setTournaments);
   }, []);
 
   return (
     <div>
       <UnreadMessagesPopup />
+      <WeeklyDigestModal />
       <h1>Dashboard</h1>
       <p className="subtitle">Panorama geral da rede neste período.</p>
 
@@ -63,6 +68,10 @@ export function OwnerDashboard() {
         />
       </div>
 
+      {tournaments.filter((t) => t.status === "ACTIVE").map((t) => (
+        <TournamentCard key={t.id} tournament={t} />
+      ))}
+
       <AlertsPanel alerts={alerts} />
 
       <div className="card section">
@@ -83,6 +92,9 @@ export function OwnerDashboard() {
         </Link>
         <Link to="/owner/hall-of-fame" className="btn secondary small">
           🏆 Ver mural →
+        </Link>
+        <Link to="/owner/tournaments" className="btn secondary small">
+          🏆 Gerenciar torneios →
         </Link>
         <CsvExportButton />
       </div>

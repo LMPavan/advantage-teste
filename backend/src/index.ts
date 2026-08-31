@@ -13,6 +13,7 @@ import { badgesRouter } from "./routes/badges.routes";
 import { messageRouter } from "./routes/message.routes";
 import { billingRouter } from "./routes/billing.routes";
 import { challengeRouter } from "./routes/challenge.routes";
+import { tournamentRouter } from "./routes/tournament.routes";
 
 const app = express();
 app.use(cors());
@@ -32,6 +33,7 @@ app.use("/badges", badgesRouter);
 app.use("/messages", messageRouter);
 app.use("/billing", billingRouter);
 app.use("/challenges", challengeRouter);
+app.use("/tournaments", tournamentRouter);
 
 app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error(err);

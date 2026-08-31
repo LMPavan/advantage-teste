@@ -70,6 +70,12 @@ enum ChallengeType {
   DUEL
 }
 
+// Métrica usada para ranquear os postos participantes de um torneio.
+enum TournamentMetric {
+  AVG_ACHIEVEMENT // atingimento médio das metas do posto no período
+  TOTAL_COMMISSION // comissão total gerada pelo posto no período
+}
+
 // ---------------------------------------------------------------------------
 // Estrutura organizacional
 // ---------------------------------------------------------------------------
@@ -85,6 +91,7 @@ model Network {
   items    Item[]
   messages Message[]
   subscription Subscription?
+  tournaments Tournament[]
 }
 
 model Station {
@@ -161,6 +168,7 @@ model User {
   challengesAsOpponent  Challenge[] @relation("ChallengeOpponent")
   challengesCreated     Challenge[] @relation("ChallengeCreatedBy")
   revenuesRecorded      StationRevenue[]
+  tournamentsCreated    Tournament[] @relation("TournamentCreatedBy")
 }
 
 // ---------------------------------------------------------------------------
@@ -359,4 +367,26 @@ model StationRevenue {
   updatedAt    DateTime @updatedAt
 
   @@unique([stationId, month])
+}
+
+// ---------------------------------------------------------------------------
+// Torneio entre postos: competição de toda a rede num período, ranqueada por atingimento médio
+// ou comissão total. O ranking é calculado ao vivo (reaproveita getStationRanking) — não existe
+// tabela de resultado, só a definição do torneio e o critério de vitória.
+// ---------------------------------------------------------------------------
+
+model Tournament {
+  id               String           @id @default(cuid())
+  networkId        String
+  network          Network          @relation(fields: [networkId], references: [id])
+  title            String
+  prizeDescription String
+  metric           TournamentMetric @default(AVG_ACHIEVEMENT)
+  startAt          DateTime
+  endAt            DateTime
+  createdById      String
+  createdBy        User             @relation("TournamentCreatedBy", fields: [createdById], references: [id])
+  createdAt        DateTime         @default(now())
+
+  @@index([networkId, endAt])
 }

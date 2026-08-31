@@ -1,5 +1,5 @@
 import { prisma } from "../prisma";
-import { computeGoalProgress, computeProjection, round2 } from "./commission.service";
+import { computeDailyCommissionEstimate, computeGoalProgress, computeProjection, round2 } from "./commission.service";
 import { currentRange, getStationRanking, monthRangeFromParam } from "./ranking.service";
 
 const PACE_ALERT_THRESHOLD = 80;
@@ -134,5 +134,121 @@ export async function getBenchmark(networkId: string): Promise<BenchmarkResult> 
     marketAvgCommissionPerStation: commissions.length
       ? round2(commissions.reduce((a, b) => a + b, 0) / commissions.length)
       : yourAvgCommissionPerStation,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Resumo semanal do dono (substitui, dentro do próprio app, o e-mail semanal que exigiria um
+// provedor de envio configurado — ver getWeeklyDigest).
+// ---------------------------------------------------------------------------
+
+function isoDate(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
+function startOfDay(d: Date): Date {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  return x;
+}
+function endOfDay(d: Date): Date {
+  const x = new Date(d);
+  x.setHours(23, 59, 59, 999);
+  return x;
+}
+
+interface EntityCommission {
+  total: number;
+  byStation: Map<string, { stationId: string; stationName: string; estimatedCommission: number }>;
+  byAttendant: Map<string, { attendantId: string; name: string; stationName: string; estimatedCommission: number }>;
+}
+
+/**
+ * Soma a comissão ESTIMADA (mesma lógica do "ritmo de hoje" já usado nas metas — reaproveita
+ * computeDailyCommissionEstimate por lançamento) de todos os lançamentos da rede num intervalo,
+ * agrupada por posto e por frentista. Não é a comissão final do período (que depende de threshold e
+ * teto proporcional), é um indicador de volume de atividade da janela.
+ */
+async function sumEstimatedCommissionByEntity(networkId: string, start: Date, end: Date): Promise<EntityCommission> {
+  const stations = await prisma.station.findMany({ where: { networkId }, select: { id: true } });
+  const stationIds = stations.map((s) => s.id);
+  const byStation = new Map<string, { stationId: string; stationName: string; estimatedCommission: number }>();
+  const byAttendant = new Map<string, { attendantId: string; name: string; stationName: string; estimatedCommission: number }>();
+  if (stationIds.length === 0) return { total: 0, byStation, byAttendant };
+
+  const entries = await prisma.entry.findMany({
+    where: { date: { gte: start, lte: end }, goal: { stationId: { in: stationIds } } },
+    include: {
+      goal: { include: { item: true, station: { select: { id: true, name: true } } } },
+      attendant: { select: { id: true, name: true } },
+    },
+  });
+
+  let total = 0;
+  for (const entry of entries) {
+    const estimate = computeDailyCommissionEstimate(entry.goal.item, entry);
+    total += estimate;
+
+    const station = byStation.get(entry.goal.station.id) ?? {
+      stationId: entry.goal.station.id,
+      stationName: entry.goal.station.name,
+      estimatedCommission: 0,
+    };
+    station.estimatedCommission = round2(station.estimatedCommission + estimate);
+    byStation.set(entry.goal.station.id, station);
+
+    const attendant = byAttendant.get(entry.attendant.id) ?? {
+      attendantId: entry.attendant.id,
+      name: entry.attendant.name,
+      stationName: entry.goal.station.name,
+      estimatedCommission: 0,
+    };
+    attendant.estimatedCommission = round2(attendant.estimatedCommission + estimate);
+    byAttendant.set(entry.attendant.id, attendant);
+  }
+
+  return { total: round2(total), byStation, byAttendant };
+}
+
+export interface WeeklyDigest {
+  weekStart: string;
+  weekEnd: string;
+  totalEstimatedCommission: number;
+  previousWeekEstimatedCommission: number;
+  changePercent: number | null;
+  topStation: { stationId: string; stationName: string; estimatedCommission: number } | null;
+  topAttendant: { attendantId: string; name: string; stationName: string; estimatedCommission: number } | null;
+  activeAlertsCount: number;
+}
+
+/** Resumo dos últimos 7 dias da rede: comissão estimada, variação vs. semana anterior, destaques e alertas ativos. */
+export async function getWeeklyDigest(networkId: string): Promise<WeeklyDigest> {
+  const now = new Date();
+  const weekEnd = endOfDay(now);
+  const weekStart = startOfDay(new Date(now.getTime() - 6 * 86400000));
+  const prevWeekEnd = endOfDay(new Date(weekStart.getTime() - 86400000));
+  const prevWeekStart = startOfDay(new Date(prevWeekEnd.getTime() - 6 * 86400000));
+
+  const stations = await prisma.station.findMany({ where: { networkId }, select: { id: true } });
+  const stationIds = stations.map((s) => s.id);
+
+  const [current, previous, alerts] = await Promise.all([
+    sumEstimatedCommissionByEntity(networkId, weekStart, weekEnd),
+    sumEstimatedCommissionByEntity(networkId, prevWeekStart, prevWeekEnd),
+    getPaceAlerts(stationIds),
+  ]);
+
+  const topStation = [...current.byStation.values()].sort((a, b) => b.estimatedCommission - a.estimatedCommission)[0] ?? null;
+  const topAttendant = [...current.byAttendant.values()].sort((a, b) => b.estimatedCommission - a.estimatedCommission)[0] ?? null;
+  const changePercent = previous.total > 0 ? round2(((current.total - previous.total) / previous.total) * 100) : null;
+
+  return {
+    weekStart: isoDate(weekStart),
+    weekEnd: isoDate(weekEnd),
+    totalEstimatedCommission: current.total,
+    previousWeekEstimatedCommission: previous.total,
+    changePercent,
+    topStation,
+    topAttendant,
+    activeAlertsCount: alerts.length,
   };
 }

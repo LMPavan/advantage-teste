@@ -14,7 +14,7 @@ import {
   monthRangeFromParam,
 } from "../services/ranking.service";
 import { getItemBreakdown, summarizeRedemptions, weightedAverage } from "../services/summary.service";
-import { getBenchmark, getNetworkMonthlyHistory, getPaceAlerts } from "../services/insights.service";
+import { getBenchmark, getNetworkMonthlyHistory, getPaceAlerts, getWeeklyDigest } from "../services/insights.service";
 import { computeGoalProgress } from "../services/commission.service";
 
 export const dashboardRouter = Router();
@@ -293,6 +293,14 @@ dashboardRouter.get("/benchmark", requireRole("OWNER"), async (req, res) => {
   const networkId = req.auth!.networkId!;
   const benchmark = await getBenchmark(networkId);
   return res.json(benchmark);
+});
+
+// Resumo dos últimos 7 dias da rede — substitui, dentro do app, o e-mail semanal (sem provedor de
+// envio configurado no ambiente). O frontend decide quando mostrar (uma vez por semana).
+dashboardRouter.get("/weekly-digest", requireRole("OWNER"), async (req, res) => {
+  const networkId = req.auth!.networkId!;
+  const digest = await getWeeklyDigest(networkId);
+  return res.json(digest);
 });
 
 // Exporta em CSV a comissão de cada meta (posto, frentista, item, realizado, meta, %, comissão) no

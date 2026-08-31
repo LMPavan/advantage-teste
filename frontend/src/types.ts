@@ -411,3 +411,41 @@ export interface StationRevenueSummary {
   totalCommission: number;
   commissionPercentOfRevenue: number | null;
 }
+
+// ---------------------------------------------------------------------------
+// Torneio entre postos
+// ---------------------------------------------------------------------------
+
+export type TournamentMetric = "AVG_ACHIEVEMENT" | "TOTAL_COMMISSION";
+export type TournamentStatus = "ACTIVE" | "FINISHED";
+
+export interface TournamentLeaderboardRow extends StationRankingRow {
+  rank: number;
+}
+
+export interface Tournament {
+  id: string;
+  title: string;
+  prizeDescription: string;
+  metric: TournamentMetric;
+  startAt: string;
+  endAt: string;
+  status: TournamentStatus;
+  leaderboard: TournamentLeaderboardRow[];
+  winnerStationId: string | null;
+}
+
+// ---------------------------------------------------------------------------
+// Resumo semanal do dono (in-app, sem e-mail)
+// ---------------------------------------------------------------------------
+
+export interface WeeklyDigest {
+  weekStart: string;
+  weekEnd: string;
+  totalEstimatedCommission: number;
+  previousWeekEstimatedCommission: number;
+  changePercent: number | null;
+  topStation: { stationId: string; stationName: string; estimatedCommission: number } | null;
+  topAttendant: { attendantId: string; name: string; stationName: string; estimatedCommission: number } | null;
+  activeAlertsCount: number;
+}
