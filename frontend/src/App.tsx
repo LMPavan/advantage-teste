@@ -11,11 +11,16 @@ import { ManagerDashboard } from "./pages/ManagerDashboard";
 import { ManagerTeam } from "./pages/ManagerTeam";
 import { ManagerRedemptions } from "./pages/ManagerRedemptions";
 import { ManagerRanking } from "./pages/ManagerRanking";
+import { ManagerMyGoals } from "./pages/ManagerMyGoals";
+import { ManagerEmployeeGoals } from "./pages/ManagerEmployeeGoals";
 import { OwnerDashboard } from "./pages/OwnerDashboard";
 import { OwnerExecutive } from "./pages/OwnerExecutive";
 import { OwnerStations } from "./pages/OwnerStations";
 import { OwnerItems } from "./pages/OwnerItems";
 import { OwnerRedemptions } from "./pages/OwnerRedemptions";
+import { OwnerEmployeeGoals } from "./pages/OwnerEmployeeGoals";
+import { OwnerItemsOverview } from "./pages/OwnerItemsOverview";
+import { OwnerStationDetail } from "./pages/OwnerStationDetail";
 import { HallOfFame } from "./pages/HallOfFame";
 import { MessagesPage } from "./pages/Messages";
 import type { Role } from "./types";
@@ -118,6 +123,30 @@ export default function App() {
         }
       />
       <Route
+        path="/manager/my-goals"
+        element={
+          <Protected roles={["MANAGER"]}>
+            <ManagerMyGoals />
+          </Protected>
+        }
+      />
+      <Route
+        path="/manager/my-goals/:goalId"
+        element={
+          <Protected roles={["MANAGER"]}>
+            <AttendantGoalDetail />
+          </Protected>
+        }
+      />
+      <Route
+        path="/manager/employees"
+        element={
+          <Protected roles={["MANAGER"]}>
+            <ManagerEmployeeGoals />
+          </Protected>
+        }
+      />
+      <Route
         path="/manager/redemptions"
         element={
           <Protected roles={["MANAGER"]}>
@@ -163,6 +192,30 @@ export default function App() {
         element={
           <Protected roles={["OWNER"]}>
             <OwnerExecutive />
+          </Protected>
+        }
+      />
+      <Route
+        path="/owner/items-overview"
+        element={
+          <Protected roles={["OWNER"]}>
+            <OwnerItemsOverview />
+          </Protected>
+        }
+      />
+      <Route
+        path="/owner/stations/:stationId"
+        element={
+          <Protected roles={["OWNER"]}>
+            <OwnerStationDetail />
+          </Protected>
+        }
+      />
+      <Route
+        path="/owner/employees"
+        element={
+          <Protected roles={["OWNER"]}>
+            <OwnerEmployeeGoals />
           </Protected>
         }
       />

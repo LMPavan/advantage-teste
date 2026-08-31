@@ -93,11 +93,14 @@ goalRouter.get("/", async (req, res) => {
   const { role, stationId, networkId, userId } = req.auth!;
   const now = currentRange();
 
+  const filterAttendantId = req.query.attendantId as string | undefined;
+
   let where: any = { startDate: { lte: now.end }, endDate: { gte: now.start } };
   if (role === "ATTENDANT") {
     where = { ...where, stationId, OR: [{ attendantId: userId }, { attendantId: null }] };
   } else if (role === "MANAGER") {
     where = { ...where, stationId };
+    if (filterAttendantId) where = { ...where, attendantId: filterAttendantId };
   } else {
     const filterStationId = req.query.stationId as string | undefined;
     if (filterStationId) {
@@ -106,6 +109,7 @@ goalRouter.get("/", async (req, res) => {
       const stations = await prisma.station.findMany({ where: { networkId: networkId! }, select: { id: true } });
       where = { ...where, stationId: { in: stations.map((s) => s.id) } };
     }
+    if (filterAttendantId) where = { ...where, attendantId: filterAttendantId };
   }
 
   const goals = await prisma.goal.findMany({
@@ -139,6 +143,55 @@ goalRouter.get("/:id", async (req, res) => {
 
   const progress = await computeGoalProgress(goal.id);
   return res.json({ ...goal, progress });
+});
+
+const updateGoalSchema = z.object({
+  targetValue: z.number().positive().optional(),
+  startDate: z.string().optional(),
+  endDate: z.string().optional(),
+});
+
+// Ajusta uma meta existente (ex.: valor-alvo). OWNER sempre pode, em qualquer posto da rede. MANAGER
+// só pode ajustar metas do próprio posto, e apenas se o dono liberou o cadastro/edição de metas para
+// gerentes ali (mesma permissão usada para criar metas).
+goalRouter.patch("/:id", requireRole("MANAGER", "OWNER"), async (req, res) => {
+  const parsed = updateGoalSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Dados inválidos.", details: parsed.error.flatten() });
+  }
+
+  const goal = await prisma.goal.findUnique({ where: { id: req.params.id } });
+  if (!goal) return res.status(404).json({ error: "Meta não encontrada." });
+
+  const { role, stationId, networkId } = req.auth!;
+  if (role === "MANAGER") {
+    if (goal.stationId !== stationId) {
+      return res.status(403).json({ error: "Sem acesso a esta meta." });
+    }
+    const station = await prisma.station.findUnique({ where: { id: goal.stationId } });
+    if (!station?.managerCanManageGoals) {
+      return res.status(403).json({ error: "O dono da rede não liberou o ajuste de metas para gerentes neste posto." });
+    }
+  } else {
+    const station = await prisma.station.findUnique({ where: { id: goal.stationId }, select: { networkId: true } });
+    if (station?.networkId !== networkId) {
+      return res.status(403).json({ error: "Sem acesso a esta meta." });
+    }
+  }
+
+  const data = parsed.data;
+  const updated = await prisma.goal.update({
+    where: { id: goal.id },
+    data: {
+      ...(data.targetValue !== undefined ? { targetValue: data.targetValue } : {}),
+      ...(data.startDate !== undefined ? { startDate: new Date(data.startDate) } : {}),
+      ...(data.endDate !== undefined ? { endDate: new Date(`${data.endDate}T23:59:59.999Z`) } : {}),
+    },
+    include: { item: true, attendant: { select: { id: true, name: true, email: true } }, station: true },
+  });
+
+  const progress = await computeGoalProgress(updated.id);
+  return res.json({ ...updated, progress });
 });
 
 const dailyQuerySchema = z.object({

@@ -16,6 +16,8 @@ const NAV_BY_ROLE: Record<string, { to: string; label: string; end?: boolean; ba
     { to: "/owner", label: "Dashboard", end: true },
     { to: "/owner/messages", label: "✉️ Mensagens", badge: true },
     { to: "/owner/ranking", label: "Ranking executivo" },
+    { to: "/owner/items-overview", label: "Atingimento por item" },
+    { to: "/owner/employees", label: "Funcionários" },
     { to: "/owner/stations", label: "Postos" },
     { to: "/owner/items", label: "Itens e comissionamento" },
     { to: "/owner/redemptions", label: "Resgates" },
@@ -24,7 +26,9 @@ const NAV_BY_ROLE: Record<string, { to: string; label: string; end?: boolean; ba
   MANAGER: [
     { to: "/manager", label: "Dashboard", end: true },
     { to: "/manager/messages", label: "✉️ Mensagens", badge: true },
+    { to: "/manager/my-goals", label: "Minhas metas" },
     { to: "/manager/team", label: "Equipe e metas" },
+    { to: "/manager/employees", label: "Gestão por funcionário" },
     { to: "/manager/redemptions", label: "Resgates" },
     { to: "/manager/ranking", label: "🏆 Ranking da rede" },
     { to: "/manager/hall-of-fame", label: "🏆 Mural" },

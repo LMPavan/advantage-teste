@@ -231,18 +231,24 @@ export async function computeManagerCommission(
 export interface StationRankingRow {
   stationId: string;
   stationName: string;
+  stationRazaoSocial: string | null;
   managerId: string | null;
   managerName: string | null;
   managerPhotoUrl: string | null;
   avgAchievement: number;
   totalCommission: number;
   attendantsCount: number;
+  // Só fazem sentido somados quando itemId é informado (mesma unidade); em modo combinado ficam null.
+  actualTotal: number | null;
+  targetTotal: number | null;
+  unit: string | null;
 }
 
 /**
  * Ranking dos postos/gerentes de uma rede, restrito a um intervalo de datas (padrão: metas ativas
  * agora). Com itemId, considera só as metas daquele item (ex.: só "Lubrificantes"), em vez da média
- * combinada de todos os itens do posto.
+ * combinada de todos os itens do posto — e nesse caso também soma o realizado e o alvo do posto
+ * inteiro naquele item (actualTotal/targetTotal), para a visão "atingimento por posto vs. alvo".
  */
 export async function getStationRanking(
   networkId: string,
@@ -267,6 +273,7 @@ export async function getStationRanking(
           startDate: { lte: range.end },
           endDate: { gte: range.start },
         },
+        include: { item: true },
       });
       const progresses = await Promise.all(goals.map((g) => computeGoalProgress(g.id)));
       const avgAchievement = progresses.length
@@ -276,12 +283,16 @@ export async function getStationRanking(
       const row: StationRankingRow = {
         stationId: station.id,
         stationName: station.name,
+        stationRazaoSocial: station.razaoSocial,
         managerId: station.manager?.id ?? null,
         managerName: station.manager?.name ?? null,
         managerPhotoUrl: station.manager?.photoUrl ?? null,
         avgAchievement,
         totalCommission,
         attendantsCount: station._count.attendants,
+        actualTotal: itemId && progresses.length ? round2(progresses.reduce((sum, p) => sum + p.actualValue, 0)) : null,
+        targetTotal: itemId && progresses.length ? round2(progresses.reduce((sum, p) => sum + p.targetValue, 0)) : null,
+        unit: itemId && goals.length ? goals[0].item.unit : null,
       };
       return row;
     })

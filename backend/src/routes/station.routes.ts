@@ -36,6 +36,7 @@ function withCodesVisibleTo<T extends { managerInviteCode?: string; attendantInv
 
 const createStationSchema = z.object({
   name: z.string().min(1),
+  razaoSocial: z.string().optional(),
   code: z.string().min(1),
   address: z.string().optional(),
   manager: z
@@ -53,13 +54,13 @@ stationRouter.post("/", requireRole("OWNER"), async (req, res) => {
   if (!parsed.success) {
     return res.status(400).json({ error: "Dados inválidos.", details: parsed.error.flatten() });
   }
-  const { name, code, address, manager } = parsed.data;
+  const { name, razaoSocial, code, address, manager } = parsed.data;
   const networkId = req.auth!.networkId!;
   const inviteCodes = await generateUniqueInviteCodes();
 
   const station = await prisma.$transaction(async (tx) => {
     const station = await tx.station.create({
-      data: { name, code, address, networkId, ...inviteCodes },
+      data: { name, razaoSocial, code, address, networkId, ...inviteCodes },
     });
 
     if (manager) {
@@ -129,6 +130,29 @@ stationRouter.get("/:id", async (req, res) => {
   }
 
   return res.json(withCodesVisibleTo(station, role));
+});
+
+const updateInfoSchema = z.object({
+  name: z.string().min(1).optional(),
+  razaoSocial: z.string().optional(),
+  address: z.string().optional(),
+});
+
+// Só o dono da rede edita os dados cadastrais do posto (nome, razão social, endereço).
+stationRouter.patch("/:id/info", requireRole("OWNER"), async (req, res) => {
+  const parsed = updateInfoSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Dados inválidos.", details: parsed.error.flatten() });
+  }
+
+  const station = await prisma.station.findUnique({ where: { id: req.params.id } });
+  if (!station) return res.status(404).json({ error: "Posto não encontrado." });
+  if (station.networkId !== req.auth!.networkId) {
+    return res.status(403).json({ error: "Sem acesso a este posto." });
+  }
+
+  const updated = await prisma.station.update({ where: { id: station.id }, data: parsed.data });
+  return res.json({ id: updated.id, name: updated.name, razaoSocial: updated.razaoSocial, address: updated.address });
 });
 
 const updatePolicySchema = z.object({

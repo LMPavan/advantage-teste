@@ -182,6 +182,61 @@ dashboardRouter.get("/manager-summary", requireRole("MANAGER"), async (req, res)
   });
 });
 
+// Detalhe de um posto: dados cadastrais, equipe com atingimento (geral, ou de UM item com ?itemId=) e
+// destaques (top 3 / bottom 3). Usado pelo dono ao clicar num posto na visão por item, e pelo próprio
+// gerente do posto.
+dashboardRouter.get("/station-detail", requireRole("MANAGER", "OWNER"), async (req, res) => {
+  const stationId = req.query.stationId as string | undefined;
+  if (!stationId) return res.status(400).json({ error: "Informe o posto (stationId)." });
+
+  const station = await prisma.station.findUnique({
+    where: { id: stationId },
+    include: {
+      manager: { select: { id: true, name: true, email: true, photoUrl: true } },
+      _count: { select: { attendants: true } },
+    },
+  });
+  if (!station) return res.status(404).json({ error: "Posto não encontrado." });
+
+  const { role, networkId, stationId: authStationId } = req.auth!;
+  if (role === "OWNER" && station.networkId !== networkId) {
+    return res.status(403).json({ error: "Sem acesso a este posto." });
+  }
+  if (role === "MANAGER" && station.id !== authStationId) {
+    return res.status(403).json({ error: "Sem acesso a este posto." });
+  }
+
+  const itemId = req.query.itemId as string | undefined;
+  if (itemId) {
+    const item = await prisma.item.findUnique({ where: { id: itemId } });
+    if (!item || item.networkId !== station.networkId) {
+      return res.status(400).json({ error: "Item inválido para esta rede." });
+    }
+  }
+  const monthParsed = monthQuerySchema.safeParse(req.query);
+  const range = monthParsed.success && monthParsed.data.month ? monthRangeFromParam(monthParsed.data.month) : undefined;
+
+  const attendants = itemId
+    ? await getAttendantItemRanking(stationId, itemId, range)
+    : await getAttendantRanking(stationId, range);
+
+  return res.json({
+    station: {
+      id: station.id,
+      name: station.name,
+      razaoSocial: station.razaoSocial,
+      code: station.code,
+      address: station.address,
+      manager: station.manager,
+      attendantsCount: station._count.attendants,
+    },
+    itemFiltered: !!itemId,
+    attendants,
+    top3: attendants.slice(0, 3),
+    bottom3: [...attendants].slice(-3).reverse(),
+  });
+});
+
 // Comissão de cada gerente da rede (visão do dono), conforme o modo configurado por posto.
 dashboardRouter.get("/manager-commissions", requireRole("OWNER"), async (req, res) => {
   const networkId = req.auth!.networkId!;

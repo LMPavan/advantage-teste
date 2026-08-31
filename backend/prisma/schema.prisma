@@ -80,9 +80,10 @@ model Network {
 }
 
 model Station {
-  id        String   @id @default(cuid())
-  name      String
-  code      String
+  id          String   @id @default(cuid())
+  name        String
+  razaoSocial String? // razão social (nome jurídico) do posto, para identificação formal nos filtros do dono
+  code        String
   address   String?
   networkId String
   network   Network  @relation(fields: [networkId], references: [id])

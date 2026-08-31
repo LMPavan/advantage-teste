@@ -76,6 +76,7 @@ export interface RedemptionPolicy {
 export interface Station {
   id: string;
   name: string;
+  razaoSocial?: string | null;
   code: string;
   address?: string | null;
   networkId: string;
@@ -119,12 +120,32 @@ export interface Redemption {
 export interface StationRankingRow {
   stationId: string;
   stationName: string;
+  stationRazaoSocial?: string | null;
   managerId: string | null;
   managerName: string | null;
   managerPhotoUrl?: string | null;
   avgAchievement: number;
   totalCommission: number;
   attendantsCount: number;
+  actualTotal: number | null;
+  targetTotal: number | null;
+  unit: string | null;
+}
+
+export interface StationDetail {
+  station: {
+    id: string;
+    name: string;
+    razaoSocial?: string | null;
+    code: string;
+    address?: string | null;
+    manager: { id: string; name: string; email: string; photoUrl?: string | null } | null;
+    attendantsCount: number;
+  };
+  itemFiltered: boolean;
+  attendants: (AttendantRankingRow | ItemAttendantRankingRow)[];
+  top3: (AttendantRankingRow | ItemAttendantRankingRow)[];
+  bottom3: (AttendantRankingRow | ItemAttendantRankingRow)[];
 }
 
 export interface AttendantRankingRow {

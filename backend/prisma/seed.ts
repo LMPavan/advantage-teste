@@ -130,10 +130,11 @@ async function main() {
   });
 
   /** Cria um posto já com os códigos de convite e a política de resgate padrão. */
-  async function createStation(name: string, code: string, address: string) {
+  async function createStation(name: string, code: string, address: string, razaoSocial: string) {
     return prisma.station.create({
       data: {
         name,
+        razaoSocial,
         code,
         address,
         networkId: network.id,
@@ -181,7 +182,7 @@ async function main() {
   const manager = await prisma.user.create({
     data: { name: "Marina Gerente", email: "gerente@example.com", passwordHash: password, role: "MANAGER" },
   });
-  const central = await createStation("Posto Central", "PC01", "Av. Principal, 100");
+  const central = await createStation("Posto Central", "PC01", "Av. Principal, 100", "Central Combustíveis Ltda.");
   await prisma.station.update({ where: { id: central.id }, data: { managerId: manager.id } });
   await prisma.redemptionPolicy.create({
     data: { stationId: central.id, allowDaily: true, allowWeekly: true, allowMonthly: true },
@@ -246,6 +247,7 @@ async function main() {
     name: string;
     code: string;
     address: string;
+    razaoSocial: string;
     managerName: string;
     managerEmail: string;
     attendantName: string;
@@ -259,6 +261,7 @@ async function main() {
       name: "Posto Norte",
       code: "PN02",
       address: "Rod. Norte, km 12",
+      razaoSocial: "Posto Norte Combustíveis Ltda.",
       managerName: "Rui Gerente",
       managerEmail: "rui@example.com",
       attendantName: "Bianca Frentista",
@@ -270,6 +273,7 @@ async function main() {
       name: "Posto Sul",
       code: "PS03",
       address: "Av. Sul, 500",
+      razaoSocial: "Distribuidora Sul de Combustíveis S.A.",
       managerName: "Diego Gerente",
       managerEmail: "diego@example.com",
       attendantName: "Julia Frentista",
@@ -281,6 +285,7 @@ async function main() {
       name: "Posto Leste",
       code: "PL04",
       address: "Rua Leste, 77",
+      razaoSocial: "Leste Petróleo e Derivados Ltda.",
       managerName: "Paula Gerente",
       managerEmail: "paula@example.com",
       attendantName: "Marcos Frentista",
@@ -295,7 +300,7 @@ async function main() {
     const stationManager = await prisma.user.create({
       data: { name: s.managerName, email: s.managerEmail, passwordHash: password, role: "MANAGER" },
     });
-    const station = await createStation(s.name, s.code, s.address);
+    const station = await createStation(s.name, s.code, s.address, s.razaoSocial);
     await prisma.station.update({ where: { id: station.id }, data: { managerId: stationManager.id } });
     await prisma.redemptionPolicy.create({
       data: { stationId: station.id, allowDaily: false, allowWeekly: true, allowMonthly: true },

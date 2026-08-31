@@ -4,6 +4,7 @@ import type { ManagerCommissionMode, Station } from "../types";
 
 function NewStationForm({ onCreated }: { onCreated: () => void }) {
   const [name, setName] = useState("");
+  const [razaoSocial, setRazaoSocial] = useState("");
   const [code, setCode] = useState("");
   const [address, setAddress] = useState("");
   const [managerName, setManagerName] = useState("");
@@ -19,6 +20,7 @@ function NewStationForm({ onCreated }: { onCreated: () => void }) {
     try {
       await api.post("/stations", {
         name,
+        razaoSocial: razaoSocial || undefined,
         code,
         address: address || undefined,
         manager:
@@ -27,6 +29,7 @@ function NewStationForm({ onCreated }: { onCreated: () => void }) {
             : undefined,
       });
       setName("");
+      setRazaoSocial("");
       setCode("");
       setAddress("");
       setManagerName("");
@@ -54,6 +57,10 @@ function NewStationForm({ onCreated }: { onCreated: () => void }) {
       <div className="field">
         <label>Nome do posto</label>
         <input className="input" value={name} onChange={(e) => setName(e.target.value)} />
+      </div>
+      <div className="field">
+        <label>Razão social (opcional)</label>
+        <input className="input" value={razaoSocial} onChange={(e) => setRazaoSocial(e.target.value)} placeholder="Ex.: Posto Central Combustíveis Ltda." />
       </div>
       <div className="field">
         <label>Código</label>
@@ -85,6 +92,33 @@ function NewStationForm({ onCreated }: { onCreated: () => void }) {
         </button>
       </div>
       {error && <p className="error-text">{error}</p>}
+    </div>
+  );
+}
+
+function StationInfoEditor({ station, onUpdated }: { station: Station; onUpdated: () => void }) {
+  const [razaoSocial, setRazaoSocial] = useState(station.razaoSocial ?? "");
+  const [saving, setSaving] = useState(false);
+
+  async function save() {
+    setSaving(true);
+    try {
+      await api.patch(`/stations/${station.id}/info`, { razaoSocial });
+      onUpdated();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="field" style={{ marginBottom: 0 }}>
+      <label>Razão social</label>
+      <div style={{ display: "flex", gap: "0.5rem" }}>
+        <input className="input" value={razaoSocial} onChange={(e) => setRazaoSocial(e.target.value)} placeholder="Nome jurídico do posto" />
+        <button className="btn secondary small" onClick={save} disabled={saving}>
+          {saving ? "Salvando..." : "Salvar"}
+        </button>
+      </div>
     </div>
   );
 }
@@ -273,7 +307,14 @@ function StationRow({ station, onUpdated }: { station: Station; onUpdated: () =>
   return (
     <>
       <tr>
-        <td>{station.name}</td>
+        <td>
+          {station.name}
+          {station.razaoSocial && (
+            <div className="meta" style={{ fontSize: "0.78rem" }}>
+              {station.razaoSocial}
+            </div>
+          )}
+        </td>
         <td>{station.code}</td>
         <td>{station.manager?.name ?? "—"}</td>
         <td>{station._count?.attendants ?? 0}</td>
@@ -287,6 +328,10 @@ function StationRow({ station, onUpdated }: { station: Station; onUpdated: () =>
         <tr>
           <td colSpan={5}>
             <div className="grid cols-2" style={{ padding: "0.8rem 0" }}>
+              <div className="card">
+                <h2 style={{ marginBottom: "0.5rem" }}>Dados cadastrais</h2>
+                <StationInfoEditor station={station} onUpdated={onUpdated} />
+              </div>
               <div className="card">
                 <h2 style={{ marginBottom: "0.5rem" }}>Códigos de convite</h2>
                 <InviteCodesCell station={station} onUpdated={onUpdated} />
