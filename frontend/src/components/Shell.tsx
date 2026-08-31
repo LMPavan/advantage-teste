@@ -1,7 +1,9 @@
 import { NavLink } from "react-router-dom";
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useMessages } from "../context/MessagesContext";
+import { api } from "../api/client";
+import type { Station } from "../types";
 import { Avatar } from "./Avatar";
 import { FuelPumpLogo } from "./FuelPumpLogo";
 
@@ -29,6 +31,7 @@ const NAV_BY_ROLE: Record<string, { to: string; label: string; end?: boolean; ba
     { to: "/manager/my-goals", label: "Minhas metas" },
     { to: "/manager/team", label: "Equipe e metas" },
     { to: "/manager/employees", label: "Gestão por funcionário" },
+    { to: "/manager/items", label: "Itens e comissionamento" },
     { to: "/manager/redemptions", label: "Resgates" },
     { to: "/manager/ranking", label: "🏆 Ranking da rede" },
     { to: "/manager/hall-of-fame", label: "🏆 Mural" },
@@ -46,9 +49,20 @@ const NAV_BY_ROLE: Record<string, { to: string; label: string; end?: boolean; ba
 export function Shell({ children }: { children: ReactNode }) {
   const { user, logout } = useAuth();
   const { unreadCount } = useMessages();
+  const [canManageItems, setCanManageItems] = useState(false);
+
+  useEffect(() => {
+    if (user?.role !== "MANAGER") return;
+    api
+      .get<Station[]>("/stations")
+      .then((stations) => setCanManageItems(stations[0]?.managerCanManageItems ?? false))
+      .catch(() => {});
+  }, [user?.role]);
 
   if (!user) return null;
-  const items = NAV_BY_ROLE[user.role] ?? [];
+  const items = (NAV_BY_ROLE[user.role] ?? []).filter(
+    (item) => item.to !== "/manager/items" || canManageItems
+  );
 
   return (
     <div className="shell">

@@ -102,6 +102,9 @@ model Station {
   managerCanManageTeam              Boolean @default(true)
   managerCanManageRedemptionPolicy  Boolean @default(true)
   managerCanRegenerateInviteCode    Boolean @default(true)
+  // Itens de comissão valem para a rede inteira (todos os postos), não só este — por isso vem
+  // desligada por padrão, diferente das outras permissões acima.
+  managerCanManageItems             Boolean @default(false)
 
   // Como o gerente deste posto ganha comissão (configurado pelo dono da rede). TEAM_SUM: percentual
   // sobre a soma da comissão da equipe. CUSTOM: metas próprias do gerente, como as de um frentista.

@@ -23,25 +23,26 @@ const PAYOUT_LABEL: Record<PayoutMode, string> = {
   PROPORTIONAL: "Paga proporcional ao atingimento",
 };
 
-function NewItemForm({ onCreated }: { onCreated: () => void }) {
-  const [name, setName] = useState("");
-  const [unit, setUnit] = useState("L");
-  const [calculationType, setCalculationType] = useState<ItemCalculationType>("SIMPLE");
-  const [direction, setDirection] = useState<GoalDirection>("HIGHER_IS_BETTER");
-  const [commissionType, setCommissionType] = useState<CommissionType>("CURRENCY_PER_UNIT");
-  const [commissionValue, setCommissionValue] = useState("");
-  const [linkedToGoal, setLinkedToGoal] = useState(true);
-  const [payoutMode, setPayoutMode] = useState<PayoutMode>("PROPORTIONAL");
-  const [threshold, setThreshold] = useState("100");
+/** Cadastro e edição de item: cria (sem `initial`) ou salva alterações (com `initial`). */
+function ItemForm({ initial, onSaved, onCancel }: { initial?: Item; onSaved: () => void; onCancel?: () => void }) {
+  const [name, setName] = useState(initial?.name ?? "");
+  const [unit, setUnit] = useState(initial?.unit ?? "L");
+  const [calculationType, setCalculationType] = useState<ItemCalculationType>(initial?.calculationType ?? "SIMPLE");
+  const [direction, setDirection] = useState<GoalDirection>(initial?.direction ?? "HIGHER_IS_BETTER");
+  const [commissionType, setCommissionType] = useState<CommissionType>(initial?.commissionType ?? "CURRENCY_PER_UNIT");
+  const [commissionValue, setCommissionValue] = useState(initial?.commissionValue ?? "");
+  const [linkedToGoal, setLinkedToGoal] = useState(initial?.linkedToGoal ?? true);
+  const [payoutMode, setPayoutMode] = useState<PayoutMode>(initial?.payoutMode ?? "PROPORTIONAL");
+  const [threshold, setThreshold] = useState(initial?.achievementThresholdPercent ?? "100");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(!!initial);
 
   async function submit() {
     setSaving(true);
     setError(null);
     try {
-      await api.post("/items", {
+      const body = {
         name,
         unit,
         calculationType,
@@ -51,13 +52,18 @@ function NewItemForm({ onCreated }: { onCreated: () => void }) {
         linkedToGoal,
         payoutMode,
         achievementThresholdPercent: Number(threshold),
-      });
-      setName("");
-      setCommissionValue("");
+      };
+      if (initial) {
+        await api.patch(`/items/${initial.id}`, body);
+      } else {
+        await api.post("/items", body);
+        setName("");
+        setCommissionValue("");
+      }
       setOpen(false);
-      onCreated();
+      onSaved();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Erro ao criar item.");
+      setError(err instanceof ApiError ? err.message : "Erro ao salvar item.");
     } finally {
       setSaving(false);
     }
@@ -149,9 +155,15 @@ function NewItemForm({ onCreated }: { onCreated: () => void }) {
 
       <div style={{ display: "flex", gap: "0.5rem", alignItems: "end" }}>
         <button className="btn small" onClick={submit} disabled={saving || !name || !unit || !commissionValue}>
-          {saving ? "Salvando..." : "Criar item"}
+          {saving ? "Salvando..." : initial ? "Salvar alterações" : "Criar item"}
         </button>
-        <button className="btn secondary small" onClick={() => setOpen(false)}>
+        <button
+          className="btn secondary small"
+          onClick={() => {
+            setOpen(false);
+            onCancel?.();
+          }}
+        >
           Cancelar
         </button>
       </div>
@@ -160,11 +172,97 @@ function NewItemForm({ onCreated }: { onCreated: () => void }) {
   );
 }
 
+function ItemRow({ item, onChanged }: { item: Item; onChanged: () => void }) {
+  const [editing, setEditing] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function toggleActive() {
+    setBusy(true);
+    setError(null);
+    try {
+      await api.patch(`/items/${item.id}`, { active: !item.active });
+      onChanged();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Erro ao atualizar item.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function remove() {
+    if (!confirm(`Excluir "${item.name}" definitivamente? Essa ação não pode ser desfeita.`)) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await api.delete(`/items/${item.id}`);
+      onChanged();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Erro ao excluir item.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (editing) {
+    return (
+      <tr>
+        <td colSpan={7}>
+          <ItemForm initial={item} onSaved={onChanged} onCancel={() => setEditing(false)} />
+        </td>
+      </tr>
+    );
+  }
+
+  return (
+    <tr style={{ opacity: item.active ? 1 : 0.55 }}>
+      <td>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+          <span className="item-icon sm">{itemIcon(item)}</span>
+          {item.name} <span className="badge neutral">{item.unit}</span>
+          {!item.active && <span className="badge bad">Inativo</span>}
+        </div>
+      </td>
+      <td>{CALC_LABEL[item.calculationType]}</td>
+      <td>
+        {COMMISSION_LABEL[item.commissionType]}: {item.commissionValue}
+      </td>
+      <td>
+        {item.linkedToGoal ? (
+          <span className="badge neutral">Vinculada à meta</span>
+        ) : (
+          <span className="badge ok">Paga por unidade</span>
+        )}
+      </td>
+      <td>{item.linkedToGoal ? PAYOUT_LABEL[item.payoutMode] : "—"}</td>
+      <td>{item.linkedToGoal ? `${item.achievementThresholdPercent}%` : "—"}</td>
+      <td>
+        <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap" }}>
+          <button className="btn secondary small" onClick={() => setEditing(true)}>
+            Editar
+          </button>
+          <button className="btn secondary small" onClick={toggleActive} disabled={busy}>
+            {item.active ? "Desativar" : "Reativar"}
+          </button>
+          <button className="btn danger small" onClick={remove} disabled={busy}>
+            Excluir
+          </button>
+        </div>
+        {error && (
+          <p className="error-text" style={{ maxWidth: 220 }}>
+            {error}
+          </p>
+        )}
+      </td>
+    </tr>
+  );
+}
+
 export function OwnerItems() {
   const [items, setItems] = useState<Item[]>([]);
 
   function load() {
-    api.get<Item[]>("/items").then(setItems);
+    api.get<Item[]>("/items?includeInactive=true").then(setItems);
   }
   useEffect(load, []);
 
@@ -178,7 +276,7 @@ export function OwnerItems() {
       <div className="card section">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <h2 style={{ marginBottom: 0 }}>Itens cadastrados</h2>
-          <NewItemForm onCreated={load} />
+          <ItemForm onSaved={load} />
         </div>
         <table className="table" style={{ marginTop: "0.8rem" }}>
           <thead>
@@ -189,31 +287,12 @@ export function OwnerItems() {
               <th>Vínculo com a meta</th>
               <th>Pagamento</th>
               <th>Meta mínima</th>
+              <th></th>
             </tr>
           </thead>
           <tbody>
             {items.map((i) => (
-              <tr key={i.id}>
-                <td>
-                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                    <span className="item-icon sm">{itemIcon(i)}</span>
-                    {i.name} <span className="badge neutral">{i.unit}</span>
-                  </div>
-                </td>
-                <td>{CALC_LABEL[i.calculationType]}</td>
-                <td>
-                  {COMMISSION_LABEL[i.commissionType]}: {i.commissionValue}
-                </td>
-                <td>
-                  {i.linkedToGoal ? (
-                    <span className="badge neutral">Vinculada à meta</span>
-                  ) : (
-                    <span className="badge ok">Paga por unidade</span>
-                  )}
-                </td>
-                <td>{i.linkedToGoal ? PAYOUT_LABEL[i.payoutMode] : "—"}</td>
-                <td>{i.linkedToGoal ? `${i.achievementThresholdPercent}%` : "—"}</td>
-              </tr>
+              <ItemRow key={i.id} item={i} onChanged={load} />
             ))}
           </tbody>
         </table>

@@ -90,6 +90,7 @@ export interface Station {
   managerCanManageTeam: boolean;
   managerCanManageRedemptionPolicy: boolean;
   managerCanRegenerateInviteCode: boolean;
+  managerCanManageItems: boolean;
   managerCommissionMode: ManagerCommissionMode;
   managerCommissionPercent: string;
 }

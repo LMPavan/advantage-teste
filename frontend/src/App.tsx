@@ -147,6 +147,14 @@ export default function App() {
         }
       />
       <Route
+        path="/manager/items"
+        element={
+          <Protected roles={["MANAGER"]}>
+            <OwnerItems />
+          </Protected>
+        }
+      />
+      <Route
         path="/manager/redemptions"
         element={
           <Protected roles={["MANAGER"]}>

@@ -208,6 +208,11 @@ const PERMISSION_FIELDS: { key: keyof Station & string; label: string; hint: str
   { key: "managerCanManageTeam", label: "Cadastrar frentistas", hint: "Criar novos frentistas para o posto." },
   { key: "managerCanManageRedemptionPolicy", label: "Definir periodicidade de resgate", hint: "Liberar resgate diário/semanal/mensal." },
   { key: "managerCanRegenerateInviteCode", label: "Regenerar código de frentista", hint: "Gerar um novo código de convite para frentistas." },
+  {
+    key: "managerCanManageItems",
+    label: "Cadastrar/editar/excluir itens de comissão",
+    hint: "Atenção: itens valem para a rede inteira, não só este posto — afeta o comissionamento de todos os postos.",
+  },
 ];
 
 function ManagerPermissionsEditor({ station, onUpdated }: { station: Station; onUpdated: () => void }) {

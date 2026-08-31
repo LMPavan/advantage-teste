@@ -252,6 +252,7 @@ const permissionsSchema = z.object({
   managerCanManageTeam: z.boolean().optional(),
   managerCanManageRedemptionPolicy: z.boolean().optional(),
   managerCanRegenerateInviteCode: z.boolean().optional(),
+  managerCanManageItems: z.boolean().optional(),
 });
 
 // Só o dono da rede decide quais ações ficam liberadas para o gerente deste posto.
@@ -273,6 +274,7 @@ stationRouter.patch("/:id/permissions", requireRole("OWNER"), async (req, res) =
     managerCanManageTeam: updated.managerCanManageTeam,
     managerCanManageRedemptionPolicy: updated.managerCanManageRedemptionPolicy,
     managerCanRegenerateInviteCode: updated.managerCanRegenerateInviteCode,
+    managerCanManageItems: updated.managerCanManageItems,
   });
 });
 
