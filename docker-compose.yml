@@ -1,0 +1,15 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: fuelgoals
+      POSTGRES_PASSWORD: fuelgoals
+      POSTGRES_DB: fuelgoals
+    ports:
+      - "5432:5432"
+    volumes:
+      - fuelgoals_db_data:/var/lib/postgresql/data
+
+volumes:
+  fuelgoals_db_data:

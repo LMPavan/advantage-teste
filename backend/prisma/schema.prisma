@@ -1,0 +1,392 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum Role {
+  OWNER // dono da rede/posto - visão executiva, cadastra postos, itens e comissionamento
+  MANAGER // gerente de posto - gestão de equipe e metas
+  ATTENDANT // frentista - acompanha metas, atingimento, comissão e resgates
+}
+
+enum Period {
+  DAILY
+  WEEKLY
+  MONTHLY
+}
+
+// Como o valor realizado de um item é calculado a partir dos lançamentos
+enum ItemCalculationType {
+  SIMPLE // valor lançado diretamente (litros, unidades, R$)
+  MIX_RATIO // (comum + aditivada) / aditivada, a partir de dois volumes lançados
+}
+
+// Direção do atingimento: se maior valor é melhor, ou se menor valor é melhor (ex.: mix)
+enum GoalDirection {
+  HIGHER_IS_BETTER
+  LOWER_IS_BETTER
+}
+
+enum CommissionType {
+  CENTS_PER_LITER // centavos por litro (ex.: mix de aditivada)
+  CURRENCY_PER_LITER // R$ por litro (ex.: lubrificantes)
+  CURRENCY_PER_UNIT // R$ por unidade (ex.: palhetas, cheirinho)
+  PERCENTAGE_OF_VALUE // % sobre o valor vendido
+  FIXED_PER_PERIOD // valor fixo ao atingir a meta no período
+}
+
+// Como o atingimento parcial afeta o pagamento da comissão
+enum PayoutMode {
+  THRESHOLD // só paga (o valor cheio) se atingir o percentual mínimo configurado
+  PROPORTIONAL // paga proporcional ao percentual de atingimento (limitado a 100%)
+}
+
+enum RedemptionStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  PAID
+}
+
+// Como a comissão do GERENTE de um posto é calculada, configurado pelo dono da rede.
+enum ManagerCommissionMode {
+  NONE // gerente não recebe comissão
+  TEAM_SUM // percentual configurado sobre a soma da comissão gerada pela equipe (frentistas) no período
+  CUSTOM // metas próprias do gerente (cadastradas pelo dono), calculadas como as de um frentista
+}
+
+// SOLO: bate um alvo individual e ganha o bônus. DUEL: dois frentistas disputam o mesmo item no
+// mesmo período — quem tiver mais realizado no fim ganha o bônus.
+enum ChallengeType {
+  SOLO
+  DUEL
+}
+
+// Métrica usada para ranquear os postos participantes de um torneio.
+enum TournamentMetric {
+  AVG_ACHIEVEMENT // atingimento médio das metas do posto no período
+  TOTAL_COMMISSION // comissão total gerada pelo posto no período
+}
+
+// ---------------------------------------------------------------------------
+// Estrutura organizacional
+// ---------------------------------------------------------------------------
+
+model Network {
+  id        String   @id @default(cuid())
+  name      String
+  ownerId   String   @unique
+  owner     User     @relation("NetworkOwner", fields: [ownerId], references: [id])
+  createdAt DateTime @default(now())
+
+  stations Station[]
+  items    Item[]
+  messages Message[]
+  subscription Subscription?
+  tournaments Tournament[]
+}
+
+model Station {
+  id          String   @id @default(cuid())
+  name        String
+  razaoSocial String? // razão social (nome jurídico) do posto, para identificação formal nos filtros do dono
+  code        String
+  address   String?
+  networkId String
+  network   Network  @relation(fields: [networkId], references: [id])
+  managerId String?  @unique
+  manager   User?    @relation("StationManager", fields: [managerId], references: [id])
+  createdAt DateTime @default(now())
+
+  // Códigos que o dono (ou o gerente, no caso do de frentista) compartilha para
+  // que o funcionário se auto-cadastre já vinculado a este posto.
+  managerInviteCode    String @unique
+  attendantInviteCode  String @unique
+
+  // Permissões que o dono da rede libera (ou não) para o gerente deste posto. OWNER sempre pode
+  // tudo, independente destas flags — elas só restringem o papel MANAGER.
+  managerCanManageGoals             Boolean @default(true)
+  managerCanManageTeam              Boolean @default(true)
+  managerCanManageRedemptionPolicy  Boolean @default(true)
+  managerCanRegenerateInviteCode    Boolean @default(true)
+  // Itens de comissão valem para a rede inteira (todos os postos), não só este — por isso vem
+  // desligada por padrão, diferente das outras permissões acima.
+  managerCanManageItems             Boolean @default(false)
+
+  // Como o gerente deste posto ganha comissão (configurado pelo dono da rede). TEAM_SUM: percentual
+  // sobre a soma da comissão da equipe. CUSTOM: metas próprias do gerente, como as de um frentista.
+  managerCommissionMode    ManagerCommissionMode @default(TEAM_SUM)
+  managerCommissionPercent Decimal               @default(100) @db.Decimal(5, 2)
+
+  attendants       User[]            @relation("StationAttendants")
+  goals            Goal[]
+  redemptionPolicy RedemptionPolicy?
+  redemptions      Redemption[]
+  challenges       Challenge[]
+  revenues         StationRevenue[]
+
+  @@unique([networkId, code])
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         Role
+  photoUrl     String?  @db.Text // avatar (data URI) usado nos rankings/mural de gamificação
+  createdAt    DateTime @default(now())
+
+  // OWNER: dono da rede (relação inversa de Network.owner)
+  ownedNetwork Network? @relation("NetworkOwner")
+
+  // MANAGER: gerencia um único posto (relação inversa de Station.manager)
+  managedStation Station? @relation("StationManager")
+
+  // ATTENDANT: pertence a um posto
+  stationId String?
+  station   Station? @relation("StationAttendants", fields: [stationId], references: [id])
+
+  goalsCreated     Goal[]       @relation("GoalCreatedBy")
+  goalsAsAttendant Goal[]       @relation("GoalAttendant")
+  entries          Entry[]
+  redemptions      Redemption[] @relation("RedemptionAttendant")
+  decisions        Redemption[] @relation("RedemptionDecidedBy")
+
+  messagesSent     Message[]          @relation("MessageSender")
+  messagesReceived MessageRecipient[]
+
+  challengesAsAttendant Challenge[] @relation("ChallengeAttendant")
+  challengesAsOpponent  Challenge[] @relation("ChallengeOpponent")
+  challengesCreated     Challenge[] @relation("ChallengeCreatedBy")
+  revenuesRecorded      StationRevenue[]
+  tournamentsCreated    Tournament[] @relation("TournamentCreatedBy")
+}
+
+// ---------------------------------------------------------------------------
+// Itens de meta e regras de comissionamento (configurados pelo admin/dono)
+// ---------------------------------------------------------------------------
+
+model Item {
+  id                        String              @id @default(cuid())
+  networkId                 String
+  network                   Network             @relation(fields: [networkId], references: [id])
+  name                      String
+  description               String?
+  unit                      String // "L", "un", "R$" etc.
+  calculationType           ItemCalculationType @default(SIMPLE)
+  direction                 GoalDirection       @default(HIGHER_IS_BETTER)
+  commissionType            CommissionType
+  commissionValue           Decimal             @db.Decimal(10, 4) // ex.: centavos/litro, R$/litro, R$/unidade, % ou valor fixo
+  // Se true (padrão): a comissão só é paga conforme o atingimento da meta (payoutMode/threshold
+  // abaixo). Se false: a comissão é paga integralmente por unidade vendida, sem nenhuma condição de
+  // bater a meta — ex.: 3 centavos por litro de aditivada vendido, pago sempre. Nesse caso
+  // payoutMode/achievementThresholdPercent são ignorados; a meta continua existindo só para
+  // acompanhamento/gamificação.
+  linkedToGoal              Boolean             @default(true)
+  payoutMode                PayoutMode          @default(PROPORTIONAL)
+  achievementThresholdPercent Decimal           @default(100) @db.Decimal(5, 2)
+  active                    Boolean             @default(true)
+  createdAt                 DateTime            @default(now())
+
+  goals      Goal[]
+  challenges Challenge[]
+}
+
+// ---------------------------------------------------------------------------
+// Metas, lançamentos e resgates
+// ---------------------------------------------------------------------------
+
+model Goal {
+  id          String   @id @default(cuid())
+  stationId   String
+  station     Station  @relation(fields: [stationId], references: [id])
+  itemId      String
+  item        Item     @relation(fields: [itemId], references: [id])
+  attendantId String? // null = meta coletiva do posto
+  attendant   User?    @relation("GoalAttendant", fields: [attendantId], references: [id])
+  period      Period
+  targetValue Decimal  @db.Decimal(12, 4)
+  startDate   DateTime
+  endDate     DateTime
+  createdById String
+  createdBy   User     @relation("GoalCreatedBy", fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+
+  entries Entry[]
+
+  @@index([stationId, itemId, attendantId])
+}
+
+model Entry {
+  id            String   @id @default(cuid())
+  goalId        String
+  goal          Goal     @relation(fields: [goalId], references: [id])
+  attendantId   String
+  attendant     User     @relation(fields: [attendantId], references: [id])
+  date          DateTime @db.Date
+  value         Decimal? @db.Decimal(12, 4) // usado quando o item é SIMPLE
+  comumLiters   Decimal? @db.Decimal(12, 4) // usado quando o item é MIX_RATIO
+  aditivadaLiters Decimal? @db.Decimal(12, 4) // usado quando o item é MIX_RATIO
+  createdAt     DateTime @default(now())
+
+  @@index([goalId, date])
+}
+
+model RedemptionPolicy {
+  id           String   @id @default(cuid())
+  stationId    String   @unique
+  station      Station  @relation(fields: [stationId], references: [id])
+  allowDaily   Boolean  @default(false)
+  allowWeekly  Boolean  @default(true)
+  allowMonthly Boolean  @default(true)
+  updatedAt    DateTime @updatedAt
+}
+
+model Redemption {
+  id               String            @id @default(cuid())
+  attendantId      String
+  attendant        User              @relation("RedemptionAttendant", fields: [attendantId], references: [id])
+  stationId        String
+  station          Station           @relation(fields: [stationId], references: [id])
+  period           Period
+  periodStart      DateTime @db.Date
+  periodEnd        DateTime @db.Date
+  commissionAmount Decimal           @db.Decimal(12, 2)
+  status           RedemptionStatus  @default(PENDING)
+  requestedAt      DateTime          @default(now())
+  decidedById      String?
+  decidedBy        User?             @relation("RedemptionDecidedBy", fields: [decidedById], references: [id])
+  decidedAt        DateTime?
+  notes            String?
+
+  @@index([attendantId, status])
+}
+
+// ---------------------------------------------------------------------------
+// Mensagens (dono → gerentes/frentistas, gerente → sua equipe)
+// ---------------------------------------------------------------------------
+
+model Message {
+  id            String   @id @default(cuid())
+  senderId      String
+  sender        User     @relation("MessageSender", fields: [senderId], references: [id])
+  networkId     String
+  network       Network  @relation(fields: [networkId], references: [id])
+  audienceLabel String // texto amigável para exibição, ex.: "Equipe do Posto Central", "Toda a rede"
+  body          String   @db.Text
+  createdAt     DateTime @default(now())
+
+  recipients MessageRecipient[]
+}
+
+// Uma linha por destinatário efetivo (resolvida no envio) — permite mensagens diretas e em massa
+// (equipe do posto, todos os gerentes, toda a rede) com o mesmo controle de lida/não lida por pessoa.
+model MessageRecipient {
+  id        String    @id @default(cuid())
+  messageId String
+  message   Message   @relation(fields: [messageId], references: [id])
+  userId    String
+  user      User      @relation(fields: [userId], references: [id])
+  readAt    DateTime?
+
+  @@unique([messageId, userId])
+  @@index([userId, readAt])
+}
+
+// ---------------------------------------------------------------------------
+// Assinatura (mensalidade da plataforma) — base + faixa por posto extra
+// ---------------------------------------------------------------------------
+
+// Mensalidade da rede na plataforma: baseFee cobre até includedStations postos; cada posto além
+// disso soma pricePerExtraStation. Definida pela plataforma (não editável pelo dono da rede).
+model Subscription {
+  id                   String   @id @default(cuid())
+  networkId            String   @unique
+  network              Network  @relation(fields: [networkId], references: [id])
+  planName             String   @default("Padrão")
+  baseFee              Decimal  @db.Decimal(10, 2)
+  includedStations     Int      @default(1)
+  pricePerExtraStation Decimal  @db.Decimal(10, 2)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+}
+
+// ---------------------------------------------------------------------------
+// Desafios relâmpago e duelos (gamificação de curto prazo, fora da meta mensal)
+// ---------------------------------------------------------------------------
+
+// Missão curta criada pelo gerente/dono: SOLO (bate um alvo sozinho) ou DUEL (dois frentistas
+// disputam o mesmo item no mesmo período — quem realizar mais, ganha). O progresso é calculado a
+// partir dos lançamentos (Entry) do(s) frentista(s) no item, dentro da janela [startAt, endAt].
+model Challenge {
+  id          String        @id @default(cuid())
+  stationId   String
+  station     Station       @relation(fields: [stationId], references: [id])
+  itemId      String
+  item        Item          @relation(fields: [itemId], references: [id])
+  type        ChallengeType @default(SOLO)
+  title       String
+  attendantId String
+  attendant   User          @relation("ChallengeAttendant", fields: [attendantId], references: [id])
+  opponentId  String? // só em DUEL
+  opponent    User?         @relation("ChallengeOpponent", fields: [opponentId], references: [id])
+  targetValue Decimal?      @db.Decimal(12, 4) // só em SOLO
+  bonusAmount Decimal       @db.Decimal(10, 2)
+  startAt     DateTime
+  endAt       DateTime
+  createdById String
+  createdBy   User          @relation("ChallengeCreatedBy", fields: [createdById], references: [id])
+  createdAt   DateTime      @default(now())
+
+  @@index([stationId, attendantId])
+  @@index([stationId, endAt])
+}
+
+// ---------------------------------------------------------------------------
+// Faturamento mensal do posto (informado manualmente) — usado para comissão como % do faturamento
+// ---------------------------------------------------------------------------
+
+model StationRevenue {
+  id           String   @id @default(cuid())
+  stationId    String
+  station      Station  @relation(fields: [stationId], references: [id])
+  month        String // "YYYY-MM"
+  totalRevenue Decimal  @db.Decimal(12, 2)
+  createdById  String
+  createdBy    User     @relation(fields: [createdById], references: [id])
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([stationId, month])
+}
+
+// ---------------------------------------------------------------------------
+// Torneio entre postos: competição de toda a rede num período, ranqueada por atingimento médio
+// ou comissão total. O ranking é calculado ao vivo (reaproveita getStationRanking) — não existe
+// tabela de resultado, só a definição do torneio e o critério de vitória.
+// ---------------------------------------------------------------------------
+
+model Tournament {
+  id               String           @id @default(cuid())
+  networkId        String
+  network          Network          @relation(fields: [networkId], references: [id])
+  title            String
+  prizeDescription String
+  metric           TournamentMetric @default(AVG_ACHIEVEMENT)
+  startAt          DateTime
+  endAt            DateTime
+  createdById      String
+  createdBy        User             @relation("TournamentCreatedBy", fields: [createdById], references: [id])
+  createdAt        DateTime         @default(now())
+
+  @@index([networkId, endAt])
+}
