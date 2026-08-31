@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { api, ApiError } from "../api/client";
 import type { CommissionType, GoalDirection, Item, ItemCalculationType, PayoutMode } from "../types";
 import { itemIcon } from "../utils/itemIcon";
+import { Switch } from "../components/Switch";
 
 const CALC_LABEL: Record<ItemCalculationType, string> = {
   SIMPLE: "Valor direto (litros, unidades ou R$)",
@@ -177,11 +178,11 @@ function ItemRow({ item, onChanged }: { item: Item; onChanged: () => void }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function toggleActive() {
+  async function toggleActive(active: boolean) {
     setBusy(true);
     setError(null);
     try {
-      await api.patch(`/items/${item.id}`, { active: !item.active });
+      await api.patch(`/items/${item.id}`, { active });
       onChanged();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Erro ao atualizar item.");
@@ -207,7 +208,7 @@ function ItemRow({ item, onChanged }: { item: Item; onChanged: () => void }) {
   if (editing) {
     return (
       <tr>
-        <td colSpan={7}>
+        <td colSpan={8}>
           <ItemForm initial={item} onSaved={onChanged} onCancel={() => setEditing(false)} />
         </td>
       </tr>
@@ -220,7 +221,6 @@ function ItemRow({ item, onChanged }: { item: Item; onChanged: () => void }) {
         <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
           <span className="item-icon sm">{itemIcon(item)}</span>
           {item.name} <span className="badge neutral">{item.unit}</span>
-          {!item.active && <span className="badge bad">Inativo</span>}
         </div>
       </td>
       <td>{CALC_LABEL[item.calculationType]}</td>
@@ -237,12 +237,12 @@ function ItemRow({ item, onChanged }: { item: Item; onChanged: () => void }) {
       <td>{item.linkedToGoal ? PAYOUT_LABEL[item.payoutMode] : "—"}</td>
       <td>{item.linkedToGoal ? `${item.achievementThresholdPercent}%` : "—"}</td>
       <td>
+        <Switch checked={item.active} onChange={toggleActive} disabled={busy} />
+      </td>
+      <td>
         <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap" }}>
           <button className="btn secondary small" onClick={() => setEditing(true)}>
             Editar
-          </button>
-          <button className="btn secondary small" onClick={toggleActive} disabled={busy}>
-            {item.active ? "Desativar" : "Reativar"}
           </button>
           <button className="btn danger small" onClick={remove} disabled={busy}>
             Excluir
@@ -287,6 +287,7 @@ export function OwnerItems() {
               <th>Vínculo com a meta</th>
               <th>Pagamento</th>
               <th>Meta mínima</th>
+              <th>Status</th>
               <th></th>
             </tr>
           </thead>
