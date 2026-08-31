@@ -1,15 +1,25 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api/client";
-import type { OwnerSummary } from "../types";
+import type { BenchmarkResult, MonthlyHistoryPoint, OwnerSummary, PaceAlert } from "../types";
 import { HighlightCard, ItemBreakdownTable, KpiCard, RedemptionSummaryCards } from "../components/DashboardWidgets";
 import { UnreadMessagesPopup } from "../components/UnreadMessagesPopup";
+import { AlertsPanel } from "../components/AlertsPanel";
+import { MonthlyHistoryChart } from "../components/MonthlyHistoryChart";
+import { BenchmarkCard } from "../components/BenchmarkCard";
+import { CsvExportButton } from "../components/CsvExportButton";
 
 export function OwnerDashboard() {
   const [data, setData] = useState<OwnerSummary | null>(null);
+  const [alerts, setAlerts] = useState<PaceAlert[]>([]);
+  const [history, setHistory] = useState<MonthlyHistoryPoint[] | null>(null);
+  const [benchmark, setBenchmark] = useState<BenchmarkResult | null>(null);
 
   useEffect(() => {
     api.get<OwnerSummary>("/dashboard/owner-summary").then(setData);
+    api.get<PaceAlert[]>("/dashboard/alerts").then(setAlerts);
+    api.get<MonthlyHistoryPoint[]>("/dashboard/history?months=6").then(setHistory);
+    api.get<BenchmarkResult>("/dashboard/benchmark").then(setBenchmark);
   }, []);
 
   return (
@@ -53,18 +63,28 @@ export function OwnerDashboard() {
         />
       </div>
 
+      <AlertsPanel alerts={alerts} />
+
       <div className="card section">
         <h2>Comissão por item</h2>
         {data && <ItemBreakdownTable rows={data.itemBreakdown} />}
       </div>
 
-      <div style={{ display: "flex", gap: "0.6rem" }}>
+      <div className="card section">
+        <h2>📈 Histórico dos últimos meses</h2>
+        {history && <MonthlyHistoryChart data={history} />}
+      </div>
+
+      {benchmark && <BenchmarkCard benchmark={benchmark} />}
+
+      <div style={{ display: "flex", gap: "0.6rem", flexWrap: "wrap" }}>
         <Link to="/owner/ranking" className="btn secondary small">
           Ver ranking executivo →
         </Link>
         <Link to="/owner/hall-of-fame" className="btn secondary small">
           🏆 Ver mural →
         </Link>
+        <CsvExportButton />
       </div>
     </div>
   );

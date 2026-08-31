@@ -63,6 +63,13 @@ enum ManagerCommissionMode {
   CUSTOM // metas próprias do gerente (cadastradas pelo dono), calculadas como as de um frentista
 }
 
+// SOLO: bate um alvo individual e ganha o bônus. DUEL: dois frentistas disputam o mesmo item no
+// mesmo período — quem tiver mais realizado no fim ganha o bônus.
+enum ChallengeType {
+  SOLO
+  DUEL
+}
+
 // ---------------------------------------------------------------------------
 // Estrutura organizacional
 // ---------------------------------------------------------------------------
@@ -77,6 +84,7 @@ model Network {
   stations Station[]
   items    Item[]
   messages Message[]
+  subscription Subscription?
 }
 
 model Station {
@@ -115,6 +123,8 @@ model Station {
   goals            Goal[]
   redemptionPolicy RedemptionPolicy?
   redemptions      Redemption[]
+  challenges       Challenge[]
+  revenues         StationRevenue[]
 
   @@unique([networkId, code])
 }
@@ -146,6 +156,11 @@ model User {
 
   messagesSent     Message[]          @relation("MessageSender")
   messagesReceived MessageRecipient[]
+
+  challengesAsAttendant Challenge[] @relation("ChallengeAttendant")
+  challengesAsOpponent  Challenge[] @relation("ChallengeOpponent")
+  challengesCreated     Challenge[] @relation("ChallengeCreatedBy")
+  revenuesRecorded      StationRevenue[]
 }
 
 // ---------------------------------------------------------------------------
@@ -174,7 +189,8 @@ model Item {
   active                    Boolean             @default(true)
   createdAt                 DateTime            @default(now())
 
-  goals Goal[]
+  goals      Goal[]
+  challenges Challenge[]
 }
 
 // ---------------------------------------------------------------------------
@@ -276,4 +292,71 @@ model MessageRecipient {
 
   @@unique([messageId, userId])
   @@index([userId, readAt])
+}
+
+// ---------------------------------------------------------------------------
+// Assinatura (mensalidade da plataforma) — base + faixa por posto extra
+// ---------------------------------------------------------------------------
+
+// Mensalidade da rede na plataforma: baseFee cobre até includedStations postos; cada posto além
+// disso soma pricePerExtraStation. Definida pela plataforma (não editável pelo dono da rede).
+model Subscription {
+  id                   String   @id @default(cuid())
+  networkId            String   @unique
+  network              Network  @relation(fields: [networkId], references: [id])
+  planName             String   @default("Padrão")
+  baseFee              Decimal  @db.Decimal(10, 2)
+  includedStations     Int      @default(1)
+  pricePerExtraStation Decimal  @db.Decimal(10, 2)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+}
+
+// ---------------------------------------------------------------------------
+// Desafios relâmpago e duelos (gamificação de curto prazo, fora da meta mensal)
+// ---------------------------------------------------------------------------
+
+// Missão curta criada pelo gerente/dono: SOLO (bate um alvo sozinho) ou DUEL (dois frentistas
+// disputam o mesmo item no mesmo período — quem realizar mais, ganha). O progresso é calculado a
+// partir dos lançamentos (Entry) do(s) frentista(s) no item, dentro da janela [startAt, endAt].
+model Challenge {
+  id          String        @id @default(cuid())
+  stationId   String
+  station     Station       @relation(fields: [stationId], references: [id])
+  itemId      String
+  item        Item          @relation(fields: [itemId], references: [id])
+  type        ChallengeType @default(SOLO)
+  title       String
+  attendantId String
+  attendant   User          @relation("ChallengeAttendant", fields: [attendantId], references: [id])
+  opponentId  String? // só em DUEL
+  opponent    User?         @relation("ChallengeOpponent", fields: [opponentId], references: [id])
+  targetValue Decimal?      @db.Decimal(12, 4) // só em SOLO
+  bonusAmount Decimal       @db.Decimal(10, 2)
+  startAt     DateTime
+  endAt       DateTime
+  createdById String
+  createdBy   User          @relation("ChallengeCreatedBy", fields: [createdById], references: [id])
+  createdAt   DateTime      @default(now())
+
+  @@index([stationId, attendantId])
+  @@index([stationId, endAt])
+}
+
+// ---------------------------------------------------------------------------
+// Faturamento mensal do posto (informado manualmente) — usado para comissão como % do faturamento
+// ---------------------------------------------------------------------------
+
+model StationRevenue {
+  id           String   @id @default(cuid())
+  stationId    String
+  station      Station  @relation(fields: [stationId], references: [id])
+  month        String // "YYYY-MM"
+  totalRevenue Decimal  @db.Decimal(12, 2)
+  createdById  String
+  createdBy    User     @relation(fields: [createdById], references: [id])
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([stationId, month])
 }

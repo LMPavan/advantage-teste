@@ -13,6 +13,7 @@ import { ManagerRedemptions } from "./pages/ManagerRedemptions";
 import { ManagerRanking } from "./pages/ManagerRanking";
 import { ManagerMyGoals } from "./pages/ManagerMyGoals";
 import { ManagerEmployeeGoals } from "./pages/ManagerEmployeeGoals";
+import { ManagerChallenges } from "./pages/ManagerChallenges";
 import { OwnerDashboard } from "./pages/OwnerDashboard";
 import { OwnerExecutive } from "./pages/OwnerExecutive";
 import { OwnerStations } from "./pages/OwnerStations";
@@ -21,6 +22,8 @@ import { OwnerRedemptions } from "./pages/OwnerRedemptions";
 import { OwnerEmployeeGoals } from "./pages/OwnerEmployeeGoals";
 import { OwnerItemsOverview } from "./pages/OwnerItemsOverview";
 import { OwnerStationDetail } from "./pages/OwnerStationDetail";
+import { OwnerChallenges } from "./pages/OwnerChallenges";
+import { OwnerBilling } from "./pages/OwnerBilling";
 import { HallOfFame } from "./pages/HallOfFame";
 import { MessagesPage } from "./pages/Messages";
 import type { Role } from "./types";
@@ -155,6 +158,14 @@ export default function App() {
         }
       />
       <Route
+        path="/manager/challenges"
+        element={
+          <Protected roles={["MANAGER"]}>
+            <ManagerChallenges />
+          </Protected>
+        }
+      />
+      <Route
         path="/manager/redemptions"
         element={
           <Protected roles={["MANAGER"]}>
@@ -224,6 +235,22 @@ export default function App() {
         element={
           <Protected roles={["OWNER"]}>
             <OwnerEmployeeGoals />
+          </Protected>
+        }
+      />
+      <Route
+        path="/owner/challenges"
+        element={
+          <Protected roles={["OWNER"]}>
+            <OwnerChallenges />
+          </Protected>
+        }
+      />
+      <Route
+        path="/owner/billing"
+        element={
+          <Protected roles={["OWNER"]}>
+            <OwnerBilling />
           </Protected>
         }
       />

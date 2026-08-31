@@ -29,9 +29,12 @@ async function main() {
   await prisma.redemption.deleteMany();
   await prisma.entry.deleteMany();
   await prisma.goal.deleteMany();
+  await prisma.challenge.deleteMany();
+  await prisma.stationRevenue.deleteMany();
   await prisma.item.deleteMany();
   await prisma.redemptionPolicy.deleteMany();
   await prisma.station.deleteMany();
+  await prisma.subscription.deleteMany();
   await prisma.network.deleteMany();
   await prisma.user.deleteMany();
 
@@ -43,6 +46,17 @@ async function main() {
   });
   const network = await prisma.network.create({
     data: { name: "Rede Exemplo de Postos", ownerId: owner.id },
+  });
+
+  console.log("Criando assinatura da rede...");
+  await prisma.subscription.create({
+    data: {
+      networkId: network.id,
+      planName: "Padrão",
+      baseFee: 199,
+      includedStations: 2,
+      pricePerExtraStation: 79,
+    },
   });
 
   console.log("Criando itens de meta e comissionamento...");

@@ -176,6 +176,36 @@ export function computeTodayProgress(
   };
 }
 
+export interface GoalProjection {
+  projectedAchievementPercent: number;
+  projectedCommission: number;
+  daysElapsed: number;
+  totalDays: number;
+}
+
+/**
+ * Projeção de fechamento do período: extrapola o ritmo atual (atingimento e comissão) linearmente
+ * pelos dias que faltam. Só faz sentido para um período em andamento — fora da janela [start, end]
+ * (período ainda não começou ou já fechou) retorna null.
+ */
+export function computeProjection(
+  progress: Pick<GoalProgress, "achievementPercent" | "commissionAmount">,
+  startDate: Date,
+  endDate: Date,
+  now: Date = new Date()
+): GoalProjection | null {
+  if (now < startDate || now > endDate) return null;
+  const totalDays = Math.max(1, Math.round((endDate.getTime() - startDate.getTime()) / 86400000) + 1);
+  const daysElapsed = Math.min(totalDays, Math.max(1, Math.round((now.getTime() - startDate.getTime()) / 86400000) + 1));
+  const factor = totalDays / daysElapsed;
+  return {
+    projectedAchievementPercent: round2(progress.achievementPercent * factor),
+    projectedCommission: round2(progress.commissionAmount * factor),
+    daysElapsed,
+    totalDays,
+  };
+}
+
 /** Calcula o progresso completo de uma meta (usa os lançamentos já filtrados pelo período desejado). */
 export async function computeGoalProgress(goalId: string): Promise<GoalProgress> {
   const goal = await prisma.goal.findUniqueOrThrow({

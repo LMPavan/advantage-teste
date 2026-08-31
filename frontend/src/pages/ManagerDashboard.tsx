@@ -1,18 +1,25 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api/client";
-import type { AttendantRankingRow, ManagerSummary } from "../types";
+import { useAuth } from "../context/AuthContext";
+import type { AttendantRankingRow, ManagerSummary, PaceAlert } from "../types";
 import { ItemBreakdownTable, KpiCard, RedemptionSummaryCards } from "../components/DashboardWidgets";
 import { TeamLeaderboard } from "../components/TeamLeaderboard";
 import { UnreadMessagesPopup } from "../components/UnreadMessagesPopup";
+import { AlertsPanel } from "../components/AlertsPanel";
+import { CsvExportButton } from "../components/CsvExportButton";
+import { RevenueForm } from "../components/RevenueForm";
 
 export function ManagerDashboard() {
+  const { user } = useAuth();
   const [data, setData] = useState<ManagerSummary | null>(null);
   const [ranking, setRanking] = useState<AttendantRankingRow[] | null>(null);
+  const [alerts, setAlerts] = useState<PaceAlert[]>([]);
 
   useEffect(() => {
     api.get<ManagerSummary>("/dashboard/manager-summary").then(setData);
     api.get<AttendantRankingRow[]>("/dashboard/station-ranking").then(setRanking);
+    api.get<PaceAlert[]>("/dashboard/alerts").then(setAlerts);
   }, []);
 
   return (
@@ -61,18 +68,23 @@ export function ManagerDashboard() {
         {ranking && <TeamLeaderboard rows={ranking} emptyMessage="Nenhum frentista com metas registradas ainda." />}
       </div>
 
+      <AlertsPanel alerts={alerts} />
+
       <div className="card section">
         <h2>Comissão por item</h2>
         {data && <ItemBreakdownTable rows={data.itemBreakdown} />}
       </div>
 
-      <div style={{ display: "flex", gap: "0.6rem" }}>
+      {user?.stationId && <RevenueForm stationId={user.stationId} />}
+
+      <div style={{ display: "flex", gap: "0.6rem", flexWrap: "wrap" }}>
         <Link to="/manager/team" className="btn secondary small">
           Gerenciar equipe e metas →
         </Link>
         <Link to="/manager/ranking" className="btn secondary small">
           🏆 Ver ranking da rede →
         </Link>
+        <CsvExportButton />
       </div>
     </div>
   );

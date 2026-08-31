@@ -4,6 +4,9 @@ import { z } from "zod";
 import { prisma } from "../prisma";
 import { requireAuth, requireRole } from "../middleware/auth";
 import { generateInviteCode } from "../utils/inviteCode";
+import { round2 } from "../services/commission.service";
+import { monthRangeFromParam } from "../services/ranking.service";
+import { getItemBreakdown } from "../services/summary.service";
 
 export const stationRouter = Router();
 stationRouter.use(requireAuth);
@@ -309,5 +312,78 @@ stationRouter.patch("/:id/manager-commission", requireRole("OWNER"), async (req,
   return res.json({
     managerCommissionMode: updated.managerCommissionMode,
     managerCommissionPercent: updated.managerCommissionPercent,
+  });
+});
+
+const revenueSchema = z.object({
+  month: z.string().regex(/^\d{4}-\d{2}$/),
+  totalRevenue: z.number().nonnegative(),
+});
+
+/** Confere se quem chama pode registrar/ver o faturamento deste posto. */
+async function canAccessStationRevenue(
+  station: { id: string; networkId: string },
+  auth: { role: string; stationId: string | null; networkId: string | null }
+): Promise<boolean> {
+  if (auth.role === "OWNER") return station.networkId === auth.networkId;
+  if (auth.role === "MANAGER") return station.id === auth.stationId;
+  return false;
+}
+
+// Registra (ou atualiza) o faturamento informado manualmente de um posto num mês — usado pra mostrar
+// a comissão como % do faturamento. OWNER em qualquer posto da rede; MANAGER só no próprio posto.
+stationRouter.post("/:id/revenue", requireRole("OWNER", "MANAGER"), async (req, res) => {
+  const parsed = revenueSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Dados inválidos.", details: parsed.error.flatten() });
+  }
+
+  const station = await prisma.station.findUnique({ where: { id: req.params.id } });
+  if (!station) return res.status(404).json({ error: "Posto não encontrado." });
+  if (!(await canAccessStationRevenue(station, req.auth!))) {
+    return res.status(403).json({ error: "Sem acesso a este posto." });
+  }
+
+  const revenue = await prisma.stationRevenue.upsert({
+    where: { stationId_month: { stationId: station.id, month: parsed.data.month } },
+    update: { totalRevenue: parsed.data.totalRevenue },
+    create: {
+      stationId: station.id,
+      month: parsed.data.month,
+      totalRevenue: parsed.data.totalRevenue,
+      createdById: req.auth!.userId,
+    },
+  });
+
+  return res.status(201).json(revenue);
+});
+
+// Faturamento de um posto num mês + a comissão gerada naquele mês como % do faturamento.
+stationRouter.get("/:id/revenue", requireRole("OWNER", "MANAGER"), async (req, res) => {
+  const month = req.query.month as string | undefined;
+  if (!month || !/^\d{4}-\d{2}$/.test(month)) {
+    return res.status(400).json({ error: "Informe o mês (YYYY-MM)." });
+  }
+
+  const station = await prisma.station.findUnique({ where: { id: req.params.id } });
+  if (!station) return res.status(404).json({ error: "Posto não encontrado." });
+  if (!(await canAccessStationRevenue(station, req.auth!))) {
+    return res.status(403).json({ error: "Sem acesso a este posto." });
+  }
+
+  const [revenue, itemBreakdown] = await Promise.all([
+    prisma.stationRevenue.findUnique({ where: { stationId_month: { stationId: station.id, month } } }),
+    getItemBreakdown({ stationId: station.id }, monthRangeFromParam(month)),
+  ]);
+
+  const totalCommission = round2(itemBreakdown.reduce((sum, i) => sum + i.totalCommission, 0));
+  const totalRevenue = revenue ? Number(revenue.totalRevenue) : null;
+  const commissionPercentOfRevenue = totalRevenue && totalRevenue > 0 ? round2((totalCommission / totalRevenue) * 100) : null;
+
+  return res.json({
+    month,
+    totalRevenue,
+    totalCommission,
+    commissionPercentOfRevenue,
   });
 });

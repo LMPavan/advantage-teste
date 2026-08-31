@@ -2,14 +2,19 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, ApiError } from "../api/client";
 import { useAuth } from "../context/AuthContext";
-import type { AttendantRankingRow, Badge, Goal } from "../types";
+import type { AttendantRankingRow, Badge, Challenge, Goal, XpSummary } from "../types";
 import { AchievementBadge, ProgressBar } from "../components/ProgressBar";
 import { BadgeShelf } from "../components/BadgeGrid";
 import { Medal, tierForRank } from "../components/Leaderboard";
 import { Avatar } from "../components/Avatar";
 import { UnreadMessagesPopup } from "../components/UnreadMessagesPopup";
 import { CommissionInfoButton } from "../components/CommissionInfoButton";
+import { XpBar } from "../components/XpBar";
+import { ChallengeCard } from "../components/ChallengeCard";
+import { CelebrationModal } from "../components/CelebrationModal";
+import { StretchGoalInput } from "../components/StretchGoalInput";
 import { itemIcon } from "../utils/itemIcon";
+import { markCelebrated, wasCelebrated } from "../utils/localGoalPrefs";
 
 const PERIOD_LABEL: Record<string, string> = { DAILY: "Diária", WEEKLY: "Semanal", MONTHLY: "Mensal" };
 
@@ -138,15 +143,29 @@ export function AttendantGoals() {
   const [goals, setGoals] = useState<Goal[] | null>(null);
   const [badges, setBadges] = useState<Badge[] | null>(null);
   const [ranking, setRanking] = useState<AttendantRankingRow[] | null>(null);
+  const [xp, setXp] = useState<XpSummary | null>(null);
+  const [challenges, setChallenges] = useState<Challenge[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [celebrating, setCelebrating] = useState<Goal | null>(null);
 
   function load() {
     api
       .get<Goal[]>("/goals")
-      .then(setGoals)
+      .then((fetched) => {
+        setGoals(fetched);
+        const newlyHit = fetched.find(
+          (g) => g.progress.achievementPercent >= 100 && !wasCelebrated(g.id, g.endDate)
+        );
+        if (newlyHit) {
+          markCelebrated(newlyHit.id, newlyHit.endDate);
+          setCelebrating(newlyHit);
+        }
+      })
       .catch((err) => setError(err instanceof ApiError ? err.message : "Erro ao carregar metas."));
     api.get<Badge[]>("/badges").then(setBadges);
     api.get<AttendantRankingRow[]>("/dashboard/station-ranking").then(setRanking);
+    api.get<XpSummary>("/badges/xp").then(setXp);
+    api.get<Challenge[]>("/challenges").then(setChallenges);
   }
 
   useEffect(load, []);
@@ -157,6 +176,9 @@ export function AttendantGoals() {
   return (
     <div>
       <UnreadMessagesPopup />
+      {celebrating && user && (
+        <CelebrationModal goal={celebrating} attendantName={user.name} onClose={() => setCelebrating(null)} />
+      )}
       <h1>Minhas metas</h1>
       <p className="subtitle">Acompanhe atingimento, o que falta e a comissão de cada item.</p>
 
@@ -173,7 +195,22 @@ export function AttendantGoals() {
         </div>
       </div>
 
+      {xp && <XpBar xp={xp} />}
+
       {ranking && user && <RankPositionCard rows={ranking} ownId={user.id} />}
+
+      {challenges && challenges.filter((c) => c.status === "ACTIVE").length > 0 && (
+        <div className="section">
+          <h2>⚡ Desafios e duelos ativos</h2>
+          <div className="grid cols-2">
+            {challenges
+              .filter((c) => c.status === "ACTIVE")
+              .map((c) => (
+                <ChallengeCard key={c.id} challenge={c} />
+              ))}
+          </div>
+        </div>
+      )}
 
       {badges && (
         <div className="card section" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "0.6rem" }}>
@@ -234,8 +271,16 @@ export function AttendantGoals() {
               <p style={{ marginTop: "0.4rem", fontSize: "0.9rem" }}>
                 Comissão gerada no mês: <strong>R$ {goal.progress.commissionAmount.toFixed(2)}</strong>
               </p>
+              {goal.projection && goal.progress.achievementPercent < 100 && (
+                <p className="subtitle" style={{ margin: "0.2rem 0 0" }}>
+                  No ritmo de hoje, fecha o mês em <strong>{goal.projection.projectedAchievementPercent}%</strong> da
+                  meta (R$ {goal.projection.projectedCommission.toFixed(2)})
+                </p>
+              )}
 
-              <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+              <StretchGoalInput goal={goal} />
+
+              <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", marginTop: "0.5rem" }}>
                 <EntryForm goal={goal} onSaved={load} />
                 <Link to={`/attendant/goals/${goal.id}`} className="btn secondary small">
                   Ver detalhes diários →

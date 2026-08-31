@@ -2,7 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../prisma";
 import { requireAuth, requireRole } from "../middleware/auth";
-import { computeDailyCommissionEstimate, computeGoalProgress, computeTodayProgress, round2 } from "../services/commission.service";
+import { computeDailyCommissionEstimate, computeGoalProgress, computeProjection, computeTodayProgress, round2 } from "../services/commission.service";
 import { currentRange } from "../services/ranking.service";
 
 /** Confere se o usuário autenticado pode ver esta meta (mesmo posto para ATTENDANT/MANAGER, mesma rede para OWNER). */
@@ -124,7 +124,8 @@ goalRouter.get("/", async (req, res) => {
       const { entries, ...rest } = goal;
       const progress = await computeGoalProgress(goal.id);
       const today = computeTodayProgress(goal.item, entries, todayIso);
-      return { ...rest, progress, today };
+      const projection = computeProjection(progress, goal.startDate, goal.endDate);
+      return { ...rest, progress, today, projection };
     })
   );
 

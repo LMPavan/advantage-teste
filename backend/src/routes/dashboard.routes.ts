@@ -5,6 +5,7 @@ import { requireAuth, requireRole } from "../middleware/auth";
 import { round2 } from "../services/commission.service";
 import {
   computeManagerCommission,
+  currentRange,
   getAttendantItemRanking,
   getAttendantRanking,
   getNetworkAttendantItemRanking,
@@ -13,6 +14,8 @@ import {
   monthRangeFromParam,
 } from "../services/ranking.service";
 import { getItemBreakdown, summarizeRedemptions, weightedAverage } from "../services/summary.service";
+import { getBenchmark, getNetworkMonthlyHistory, getPaceAlerts } from "../services/insights.service";
+import { computeGoalProgress } from "../services/commission.service";
 
 export const dashboardRouter = Router();
 dashboardRouter.use(requireAuth);
@@ -260,4 +263,76 @@ dashboardRouter.get("/manager-commissions", requireRole("OWNER"), async (req, re
   );
 
   return res.json(rows);
+});
+
+/** Resolve a lista de stationIds visível a quem chama (rede toda pro dono, só o posto pro gerente). */
+async function scopedStationIds(auth: { role: string; stationId: string | null; networkId: string | null }): Promise<string[]> {
+  if (auth.role === "MANAGER") return auth.stationId ? [auth.stationId] : [];
+  const stations = await prisma.station.findMany({ where: { networkId: auth.networkId! }, select: { id: true } });
+  return stations.map((s) => s.id);
+}
+
+// Alertas de ritmo: postos/frentistas cuja projeção de fechamento do período está abaixo do limiar,
+// mesmo que ainda dê tempo de reagir.
+dashboardRouter.get("/alerts", requireRole("MANAGER", "OWNER"), async (req, res) => {
+  const stationIds = await scopedStationIds(req.auth!);
+  const alerts = await getPaceAlerts(stationIds);
+  return res.json(alerts);
+});
+
+// Série histórica dos últimos N meses (padrão 6) da rede: comissão total e atingimento médio por mês.
+dashboardRouter.get("/history", requireRole("OWNER"), async (req, res) => {
+  const networkId = req.auth!.networkId!;
+  const months = Math.min(12, Math.max(1, Number(req.query.months) || 6));
+  const history = await getNetworkMonthlyHistory(networkId, months);
+  return res.json(history);
+});
+
+// Comparativo anônimo com a média de outras redes na plataforma no período atual.
+dashboardRouter.get("/benchmark", requireRole("OWNER"), async (req, res) => {
+  const networkId = req.auth!.networkId!;
+  const benchmark = await getBenchmark(networkId);
+  return res.json(benchmark);
+});
+
+// Exporta em CSV a comissão de cada meta (posto, frentista, item, realizado, meta, %, comissão) no
+// período atual — pronto pra colar em planilha/folha de pagamento.
+dashboardRouter.get("/export-csv", requireRole("MANAGER", "OWNER"), async (req, res) => {
+  const stationIds = await scopedStationIds(req.auth!);
+  const now = currentRange();
+
+  const goals = await prisma.goal.findMany({
+    where: { stationId: { in: stationIds }, startDate: { lte: now.end }, endDate: { gte: now.start } },
+    include: { item: true, attendant: { select: { name: true } }, station: { select: { name: true } } },
+    orderBy: [{ station: { name: "asc" } }, { item: { name: "asc" } }],
+  });
+
+  function csvEscape(value: string): string {
+    if (/[",\n]/.test(value)) return `"${value.replace(/"/g, '""')}"`;
+    return value;
+  }
+
+  const header = ["Posto", "Frentista", "Item", "Realizado", "Meta", "Unidade", "Atingimento (%)", "Comissão (R$)"];
+  const rows = await Promise.all(
+    goals.map(async (goal) => {
+      const progress = await computeGoalProgress(goal.id);
+      return [
+        goal.station.name,
+        goal.attendant?.name ?? "Meta coletiva",
+        goal.item.name,
+        String(progress.actualValue),
+        String(progress.targetValue),
+        goal.item.unit,
+        String(progress.achievementPercent),
+        progress.commissionAmount.toFixed(2),
+      ]
+        .map(csvEscape)
+        .join(",");
+    })
+  );
+
+  const csv = [header.join(","), ...rows].join("\n");
+  res.setHeader("Content-Type", "text/csv; charset=utf-8");
+  res.setHeader("Content-Disposition", `attachment; filename="comissoes.csv"`);
+  return res.send("﻿" + csv); // BOM pro Excel abrir acentos corretamente
 });

@@ -49,6 +49,13 @@ export interface TodayProgress {
   estimatedCommission: number;
 }
 
+export interface GoalProjection {
+  projectedAchievementPercent: number;
+  projectedCommission: number;
+  daysElapsed: number;
+  totalDays: number;
+}
+
 export interface Goal {
   id: string;
   stationId: string;
@@ -63,6 +70,7 @@ export interface Goal {
   station?: { id: string; name: string };
   progress: GoalProgress;
   today: TodayProgress;
+  projection: GoalProjection | null;
 }
 
 export interface RedemptionPolicy {
@@ -304,4 +312,102 @@ export interface DailyGoalDetail {
   rangeStart: string;
   rangeEnd: string;
   days: DailyGoalEntry[];
+}
+
+// ---------------------------------------------------------------------------
+// Assinatura da plataforma (mensalidade base + faixa por posto)
+// ---------------------------------------------------------------------------
+
+export interface Billing {
+  planName: string;
+  stationsCount: number;
+  includedStations: number;
+  baseFee: number;
+  extraStations: number;
+  pricePerExtraStation: number;
+  extraCost: number;
+  totalMonthly: number;
+}
+
+// ---------------------------------------------------------------------------
+// Desafios relâmpago e duelos
+// ---------------------------------------------------------------------------
+
+export type ChallengeType = "SOLO" | "DUEL";
+export type ChallengeStatus = "ACTIVE" | "WON" | "LOST" | "EXPIRED";
+
+export interface Challenge {
+  id: string;
+  stationId: string;
+  station: { id: string; name: string };
+  itemId: string;
+  item: Item;
+  type: ChallengeType;
+  title: string;
+  attendantId: string;
+  attendant: { id: string; name: string; photoUrl?: string | null };
+  opponentId: string | null;
+  opponent: { id: string; name: string; photoUrl?: string | null } | null;
+  targetValue: number | null;
+  bonusAmount: number;
+  startAt: string;
+  endAt: string;
+  myValue: number;
+  opponentValue: number | null;
+  status: ChallengeStatus;
+}
+
+// ---------------------------------------------------------------------------
+// XP / nível (progressão de longo prazo do frentista)
+// ---------------------------------------------------------------------------
+
+export interface XpSummary {
+  xp: number;
+  goalsHitAllTime: number;
+  badgesAchieved: number;
+  level: string;
+  levelIndex: number;
+  nextLevel: string | null;
+  nextLevelAt: number | null;
+  progressToNextPercent: number;
+}
+
+// ---------------------------------------------------------------------------
+// Insights: alertas de ritmo, histórico mensal, benchmark
+// ---------------------------------------------------------------------------
+
+export interface PaceAlert {
+  stationId: string;
+  stationName: string;
+  attendantId: string;
+  attendantName: string;
+  itemName: string;
+  achievementPercent: number;
+  projectedAchievementPercent: number;
+  message: string;
+}
+
+export interface MonthlyHistoryPoint {
+  month: string;
+  totalCommission: number;
+  avgAchievement: number;
+}
+
+export interface BenchmarkResult {
+  networksCompared: number;
+  yourAvgAchievement: number;
+  marketAvgAchievement: number;
+  yourAvgCommissionPerStation: number;
+  marketAvgCommissionPerStation: number;
+}
+
+// ---------------------------------------------------------------------------
+// Faturamento mensal do posto
+// ---------------------------------------------------------------------------
+
+export interface StationRevenueSummary {
+  month: string;
+  totalRevenue: number | null;
+  totalCommission: number;
+  commissionPercentOfRevenue: number | null;
 }
