@@ -9,6 +9,7 @@ import { Medal, tierForRank } from "../components/Leaderboard";
 import { Avatar } from "../components/Avatar";
 import { UnreadMessagesPopup } from "../components/UnreadMessagesPopup";
 import { CommissionInfoButton } from "../components/CommissionInfoButton";
+import { itemIcon } from "../utils/itemIcon";
 
 const PERIOD_LABEL: Record<string, string> = { DAILY: "Diária", WEEKLY: "Semanal", MONTHLY: "Mensal" };
 
@@ -195,17 +196,20 @@ export function AttendantGoals() {
           const remaining = remainingMessage(goal);
           return (
             <div className="card" key={goal.id}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start" }}>
-                <div>
-                  <h2 style={{ marginBottom: "0.1rem", display: "flex", alignItems: "center", gap: "0.4rem" }}>
-                    {goal.item.name} <CommissionInfoButton item={goal.item} />
-                  </h2>
-                  <span className="badge neutral">{PERIOD_LABEL[goal.period]}</span>{" "}
-                  {!goal.item.linkedToGoal && (
-                    <span className="badge ok" title="Você recebe por unidade vendida, mesmo sem bater a meta.">
-                      Paga por unidade
-                    </span>
-                  )}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", gap: "0.6rem" }}>
+                <div style={{ display: "flex", alignItems: "start", gap: "0.7rem", minWidth: 0 }}>
+                  <span className="item-icon">{itemIcon(goal.item)}</span>
+                  <div>
+                    <h2 style={{ marginBottom: "0.1rem", display: "flex", alignItems: "center", gap: "0.4rem" }}>
+                      {goal.item.name} <CommissionInfoButton item={goal.item} />
+                    </h2>
+                    <span className="badge neutral">{PERIOD_LABEL[goal.period]}</span>{" "}
+                    {!goal.item.linkedToGoal && (
+                      <span className="badge ok" title="Você recebe por unidade vendida, mesmo sem bater a meta.">
+                        Paga por unidade
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <AchievementBadge percent={goal.progress.achievementPercent} />
               </div>

@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { ApiError } from "../api/client";
 import { PhotoUpload } from "../components/PhotoUpload";
+import { FuelPumpLogo } from "../components/FuelPumpLogo";
 import type { Role } from "../types";
 
 type Mode = "login" | "register";
@@ -58,9 +59,33 @@ export function LoginPage() {
 
   return (
     <div className="auth-page">
-      <div className="auth-card">
-        <div className="card">
-          <h1>⛽ Metas Posto</h1>
+      <div className="auth-shell">
+        <div className="auth-hero">
+          <div style={{ display: "flex", alignItems: "center", gap: "0.7rem" }}>
+            <FuelPumpLogo size={38} />
+            <div style={{ fontFamily: "var(--font-heading)", fontSize: "1.3rem", fontWeight: 700 }}>Metas Posto</div>
+          </div>
+          <div>
+            <h2>Metas, comissão e ranking na palma da mão.</h2>
+            <p>
+              Feito para o dia a dia do posto: o frentista acompanha a comissão em tempo real, o gerente cuida
+              da equipe e o dono enxerga a rede inteira — tudo simples, tudo no celular.
+            </p>
+          </div>
+          <div className="auth-hero-points">
+            <div className="auth-hero-point">
+              <span className="icon">⛽</span> Lance a venda do dia em segundos
+            </div>
+            <div className="auth-hero-point">
+              <span className="icon">💰</span> Veja a comissão crescer ao vivo
+            </div>
+            <div className="auth-hero-point">
+              <span className="icon">🏆</span> Dispute o ranking com o time
+            </div>
+          </div>
+        </div>
+        <div className="auth-card">
+          <div className="card">
           <p className="subtitle">{mode === "login" ? "Entre com sua conta" : "Crie sua conta"}</p>
 
           {mode === "register" && (
@@ -154,6 +179,7 @@ export function LoginPage() {
                 Já tem conta? <button onClick={() => setMode("login")}>Entrar</button>
               </>
             )}
+          </div>
           </div>
         </div>
       </div>

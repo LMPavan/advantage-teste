@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useMessages } from "../context/MessagesContext";
 import { Avatar } from "./Avatar";
+import { FuelPumpLogo } from "./FuelPumpLogo";
 
 const ROLE_LABEL: Record<string, string> = {
   OWNER: "Dono da rede",
@@ -48,7 +49,10 @@ export function Shell({ children }: { children: ReactNode }) {
   return (
     <div className="shell">
       <aside className="sidebar">
-        <div className="brand">⛽ Metas Posto</div>
+        <div className="brand">
+          <FuelPumpLogo size={30} />
+          <span>Metas Posto</span>
+        </div>
         <nav>
           {items.map((item) => (
             <NavLink
@@ -63,10 +67,10 @@ export function Shell({ children }: { children: ReactNode }) {
           ))}
         </nav>
         <div className="user-box">
-          <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", marginBottom: "0.4rem" }}>
+          <div className="user-box-inner">
             <Avatar name={user.name} photoUrl={user.photoUrl} size={32} />
-            <div>
-              <div style={{ color: "var(--text)" }}>{user.name}</div>
+            <div className="user-box-text">
+              <div className="u-name">{user.name}</div>
               <div>{ROLE_LABEL[user.role]}</div>
             </div>
           </div>

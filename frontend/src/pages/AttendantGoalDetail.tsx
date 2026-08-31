@@ -5,6 +5,7 @@ import type { DailyGoalDetail, Goal } from "../types";
 import { DailyBarChart } from "../components/DailyBarChart";
 import { AchievementBadge, ProgressBar } from "../components/ProgressBar";
 import { CommissionInfoButton } from "../components/CommissionInfoButton";
+import { itemIcon } from "../utils/itemIcon";
 
 type PeriodMode = "WEEK" | "MONTH" | "CUSTOM";
 
@@ -68,7 +69,8 @@ export function AttendantGoalDetail() {
       <Link to="/attendant" className="btn secondary small" style={{ marginBottom: "1rem", display: "inline-block" }}>
         ← Voltar para minhas metas
       </Link>
-      <h1 style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+      <h1 style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
+        {goal && <span className="item-icon">{itemIcon(goal.item)}</span>}
         {goal?.item.name ?? "Detalhe do item"}
         {goal && <CommissionInfoButton item={goal.item} />}
       </h1>

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, ApiError } from "../api/client";
 import type { CommissionType, GoalDirection, Item, ItemCalculationType, PayoutMode } from "../types";
+import { itemIcon } from "../utils/itemIcon";
 
 const CALC_LABEL: Record<ItemCalculationType, string> = {
   SIMPLE: "Valor direto (litros, unidades ou R$)",
@@ -194,7 +195,10 @@ export function OwnerItems() {
             {items.map((i) => (
               <tr key={i.id}>
                 <td>
-                  {i.name} <span className="badge neutral">{i.unit}</span>
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                    <span className="item-icon sm">{itemIcon(i)}</span>
+                    {i.name} <span className="badge neutral">{i.unit}</span>
+                  </div>
                 </td>
                 <td>{CALC_LABEL[i.calculationType]}</td>
                 <td>

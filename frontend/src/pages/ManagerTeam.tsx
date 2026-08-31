@@ -3,6 +3,7 @@ import { api, ApiError } from "../api/client";
 import type { Attendant, Goal, Item, Period, Station, TeamDashboard } from "../types";
 import { AchievementBadge, ProgressBar } from "../components/ProgressBar";
 import { useAuth } from "../context/AuthContext";
+import { itemIcon } from "../utils/itemIcon";
 
 function ManagerEntryForm({ goal, onSaved }: { goal: Goal; onSaved: () => void }) {
   const isMix = goal.item.calculationType === "MIX_RATIO";
@@ -387,7 +388,10 @@ export function ManagerTeam() {
             {goals.map((g) => (
               <tr key={g.id}>
                 <td>
-                  {g.item.name} {g.attendantId === user?.id && <span className="badge neutral">Sua meta pessoal</span>}
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                    <span className="item-icon sm">{itemIcon(g.item)}</span>
+                    {g.item.name} {g.attendantId === user?.id && <span className="badge neutral">Sua meta pessoal</span>}
+                  </div>
                 </td>
                 <td>{g.attendant?.name ?? "Time todo"}</td>
                 <td>{PERIOD_LABEL[g.period]}</td>
