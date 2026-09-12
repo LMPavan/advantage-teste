@@ -25,6 +25,7 @@ import { OwnerStationDetail } from "./pages/OwnerStationDetail";
 import { OwnerChallenges } from "./pages/OwnerChallenges";
 import { OwnerBilling } from "./pages/OwnerBilling";
 import { OwnerTournaments } from "./pages/OwnerTournaments";
+import { OwnerMixSimulator } from "./pages/OwnerMixSimulator";
 import { HallOfFame } from "./pages/HallOfFame";
 import { MessagesPage } from "./pages/Messages";
 import type { Role } from "./types";
@@ -260,6 +261,14 @@ export default function App() {
         element={
           <Protected roles={["OWNER"]}>
             <OwnerTournaments />
+          </Protected>
+        }
+      />
+      <Route
+        path="/owner/mix-simulator"
+        element={
+          <Protected roles={["OWNER"]}>
+            <OwnerMixSimulator />
           </Protected>
         }
       />

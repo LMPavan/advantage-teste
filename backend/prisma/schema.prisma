@@ -194,6 +194,10 @@ model Item {
   linkedToGoal              Boolean             @default(true)
   payoutMode                PayoutMode          @default(PROPORTIONAL)
   achievementThresholdPercent Decimal           @default(100) @db.Decimal(5, 2)
+  // Só usado em itens MIX_RATIO: lucro extra (R$) que cada litro de aditivada gera sobre um litro de
+  // comum, informado pelo dono — usado no simulador de "quanto o mix precisa crescer pra compensar
+  // um aumento de comissão" (não é usado no cálculo da comissão em si).
+  extraMarginPerLiter       Decimal?            @db.Decimal(10, 4)
   active                    Boolean             @default(true)
   createdAt                 DateTime            @default(now())
 

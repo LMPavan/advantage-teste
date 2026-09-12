@@ -2,6 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../prisma";
 import { requireAuth, requireRole } from "../middleware/auth";
+import { simulateMixCommissionChange } from "../services/mixSimulator.service";
 
 export const itemRouter = Router();
 itemRouter.use(requireAuth);
@@ -25,6 +26,8 @@ const itemSchema = z.object({
   linkedToGoal: z.boolean().default(true),
   payoutMode: z.enum(["THRESHOLD", "PROPORTIONAL"]),
   achievementThresholdPercent: z.number().min(0).max(1000).default(100),
+  // Só usado em itens MIX_RATIO, pro simulador de comissão (não entra no cálculo da comissão em si).
+  extraMarginPerLiter: z.number().nonnegative().nullable().optional(),
   active: z.boolean().optional(),
 });
 
@@ -100,4 +103,28 @@ itemRouter.delete("/:id", requireRole("OWNER", "MANAGER"), async (req, res) => {
 
   await prisma.item.delete({ where: { id: item.id } });
   return res.status(204).send();
+});
+
+const mixSimulatorSchema = z.object({
+  newCommissionValue: z.number().nonnegative(),
+  marginPerLiter: z.number().positive(),
+});
+
+// Simulador (só dono): quanto custa mudar a comissão de um item MIX_RATIO (ex.: Mix Aditivada) e
+// quanto o mix médio da rede precisaria crescer pra que a margem extra informada pague esse custo.
+itemRouter.post("/:id/mix-simulator", requireRole("OWNER"), async (req, res) => {
+  const parsed = mixSimulatorSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Dados inválidos.", details: parsed.error.flatten() });
+  }
+  const item = await prisma.item.findUnique({ where: { id: req.params.id } });
+  if (!item || item.networkId !== req.auth!.networkId) {
+    return res.status(404).json({ error: "Item não encontrado." });
+  }
+  if (item.calculationType !== "MIX_RATIO") {
+    return res.status(400).json({ error: "O simulador só funciona para itens do tipo mix (% de penetração)." });
+  }
+
+  const result = await simulateMixCommissionChange(req.auth!.networkId!, item.id, parsed.data);
+  return res.json(result);
 });

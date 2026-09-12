@@ -34,6 +34,7 @@ export interface Item {
   linkedToGoal: boolean;
   payoutMode: PayoutMode;
   achievementThresholdPercent: string;
+  extraMarginPerLiter: string | null;
   active: boolean;
 }
 
@@ -438,6 +439,24 @@ export interface Tournament {
 // ---------------------------------------------------------------------------
 // Resumo semanal do dono (in-app, sem e-mail)
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// Simulador de comissão do mix (quanto custa mudar a taxa, e quanto o mix precisa
+// crescer pra margem extra da aditivada compensar esse custo)
+// ---------------------------------------------------------------------------
+
+export interface MixSimulatorResult {
+  currentCommissionValue: number;
+  currentMixPercent: number;
+  currentMonthlyCost: number;
+  newCommissionValue: number;
+  marginPerLiter: number;
+  extraCostAtSameMix: number;
+  requiredMixGrowthPoints: number | null;
+  requiredMixPercent: number | null;
+  breakEvenReached: boolean;
+  totalLiters: number;
+}
 
 export interface WeeklyDigest {
   weekStart: string;

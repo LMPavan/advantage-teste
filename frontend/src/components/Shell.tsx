@@ -24,6 +24,7 @@ const NAV_BY_ROLE: Record<string, { to: string; label: string; end?: boolean; ba
     { to: "/owner/tournaments", label: "🏆 Torneios entre postos" },
     { to: "/owner/stations", label: "Postos" },
     { to: "/owner/items", label: "Itens e comissionamento" },
+    { to: "/owner/mix-simulator", label: "🧮 Simulador de comissão" },
     { to: "/owner/billing", label: "Assinatura" },
     { to: "/owner/redemptions", label: "Resgates" },
     { to: "/owner/hall-of-fame", label: "🏆 Mural" },
