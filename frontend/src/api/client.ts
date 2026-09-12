@@ -1,3 +1,8 @@
+// Em produção (build estático, sem o proxy de dev do Vite), aponta pra URL pública da API via
+// VITE_API_URL definida no build (ex.: https://backend-xxxx.up.railway.app). Em dev, usa "/api" e
+// deixa o proxy do vite.config.ts encaminhar pra http://localhost:3333.
+const API_BASE = import.meta.env.VITE_API_URL ?? "/api";
+
 const TOKEN_KEY = "fuelgoals_token";
 
 export function getToken(): string | null {
@@ -25,7 +30,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   };
   if (token) headers.Authorization = `Bearer ${token}`;
 
-  const res = await fetch(`/api${path}`, { ...options, headers });
+  const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
 
   if (!res.ok) {
     let message = `Erro ${res.status}`;

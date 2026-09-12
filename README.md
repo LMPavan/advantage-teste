@@ -192,6 +192,60 @@ npm run dev             # http://localhost:5173 (proxy /api -> :3333)
 Acesse `http://localhost:5173`, faça login com um dos usuários acima (ou cadastre uma nova rede pela
 tela de login, como dono).
 
+## Deploy no Railway (pra testar com uma rede de verdade)
+
+O repositório já está pronto pra rodar no [Railway](https://railway.app) como duas services (backend e
+frontend) + um banco Postgres, todas conectadas ao mesmo repositório do GitHub. Passo a passo:
+
+### 1. Criar o projeto e o banco
+
+1. Crie uma conta em railway.app (dá pra entrar direto com o GitHub).
+2. **New Project → Deploy from GitHub repo** → selecione `lmpavan/advantage-teste`.
+3. Dentro do projeto: **New → Database → Add PostgreSQL**. O Railway já cuida de criar e manter o banco.
+
+### 2. Service do backend
+
+1. **New → GitHub Repo** (o mesmo repositório de novo) → em **Settings → Root Directory**, coloque
+   `backend`.
+2. Em **Variables**, adicione:
+   - `DATABASE_URL` → clique em "Add Reference" e escolha a variável `DATABASE_URL` do Postgres que
+     você criou (ou digite `${{Postgres.DATABASE_URL}}`).
+   - `JWT_SECRET` → um valor aleatório longo (ex.: gere com `openssl rand -hex 32`), nunca o
+     `change-me-in-production` do `.env.example`.
+3. Não precisa mexer em build/start — o Railway detecta `npm run build` e `npm run start` sozinho
+   (o `start` já roda `prisma migrate deploy` antes de subir o servidor).
+4. Depois do primeiro deploy: **Settings → Networking → Generate Domain**. Guarde essa URL
+   (ex.: `https://backend-production-xxxx.up.railway.app`) — é a URL pública da API.
+
+### 3. Service do frontend
+
+1. **New → GitHub Repo** (mesmo repositório) → **Settings → Root Directory** → `frontend`.
+2. Em **Variables**, adicione `VITE_API_URL` com a URL do backend do passo anterior (sem barra no
+   final). **Importante**: essa variável precisa estar configurada *antes* do build — se você mudar
+   depois, precisa clicar em "Redeploy" pra gerar um novo build com o valor certo (o Vite grava essa
+   URL dentro do arquivo estático na hora de compilar).
+3. Build/start também são detectados automaticamente (`npm run build` / `npm run start`, que serve os
+   arquivos estáticos com `serve`, já configurado com o modo SPA — funciona certinho com as rotas do
+   react-router).
+4. **Settings → Networking → Generate Domain** — essa é a URL que você compartilha com a rede pra
+   testar.
+
+### 4. Primeiro acesso
+
+Acesse a URL pública do frontend e cadastre a rede de teste pela própria tela de login, como **dono**
+(não é necessário nem recomendado rodar o script de seed em produção — ele apaga todos os dados
+existentes ao rodar de novo). O dono cria os postos, e os códigos de convite de gerente/frentista saem
+de lá.
+
+### Coisas a saber
+
+- O CORS do backend está aberto (`cors()` sem restrição de origem) — suficiente pra um piloto, mas dá
+  pra restringir à URL do frontend mais adiante.
+- O Railway costuma dar créditos grátis por um período; depois disso pede um cartão pra continuar — vale
+  acompanhar o uso se for deixar rodando por muito tempo com uma rede real.
+- Se aparecer erro no deploy, o log de build/runtime aparece na própria aba do service no Railway — pode
+  colar aqui que eu ajudo a debugar.
+
 ## Principais endpoints da API
 
 | Método | Rota | Quem acessa |
