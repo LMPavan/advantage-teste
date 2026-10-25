@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Preço de Praça</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="/estilo.css">
+</head>
+<body>
+<header class="top" id="topo" hidden>
+  <div class="wrap">
+    <div class="top-row">
+      <div class="brand"><h1>Preço de Praça</h1><span class="tag">preço de compra de combustível, compartilhado por postos</span></div>
+      <div class="me" id="me"></div>
+    </div>
+    <nav class="tabs" role="tablist" id="tabs">
+      <button role="tab" data-tab="exec" aria-selected="true">Visão executiva</button>
+      <button role="tab" data-tab="explore" aria-selected="false">Explorar regiões</button>
+      <button role="tab" data-tab="nf" aria-selected="false">Enviar NF da semana</button>
+      <button role="tab" data-tab="how" aria-selected="false">Regras</button>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap" id="app"><p class="carregando">Carregando…</p></main>
+<div id="tip" hidden></div>
+<script type="module" src="/app.js"></script>
+</body>
+</html>

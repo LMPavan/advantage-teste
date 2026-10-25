@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { situacaoPostos } from '../acesso.ts';
 import { COOKIE, conferirSenha, criarSessao, exigirLogin, gerarHash } from '../auth.ts';
 import { config } from '../config.ts';
-import type { Contexto } from '../contexto.ts';
+import { areasDoMunicipio, nomeArea, type Contexto } from '../contexto.ts';
 import { dataLocal, somarDias } from '../dominio/semanas.ts';
 import { cnpjValido, somenteDigitos } from '../nfe/documentos.ts';
 
@@ -73,7 +73,10 @@ export function rotasConta(app: FastifyInstance, ctx: Contexto): void {
     const postos = await situacaoPostos(db, u.id, ctx.agora());
     return {
       usuario: u,
-      postos: postos.map(p => ({ ...p, municipioNome: p.municipio ? ctx.geo.municipios.get(p.municipio)?.nome ?? null : null })),
+      postos: postos.map(p => {
+        const areas = p.municipio ? areasDoMunicipio(ctx.geo, p.municipio) : null;
+        return { ...p, areas, microNome: areas ? nomeArea(ctx.geo, 'micro', areas.micro) : null };
+      }),
       liberado: postos.length > 0 && postos.every(p => p.liberado),
       demo: config.demo,
     };
