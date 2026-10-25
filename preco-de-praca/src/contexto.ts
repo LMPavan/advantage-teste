@@ -1,6 +1,7 @@
 import type { X509Certificate } from 'node:crypto';
 import type { Db } from './db.ts';
 import type { ProdutoId } from './dominio/produtos.ts';
+import type { EnviarEmail } from './email.ts';
 
 export interface Geo {
   municipios: Map<string, { nome: string; micro: string }>;
@@ -14,6 +15,9 @@ export interface Contexto {
   autoridades: X509Certificate[];
   geo: Geo;
   faixas: Map<ProdutoId, { min: number; max: number }>;
+  /** Janela de carga inicial: último dia (YYYY-MM-DD) e quantas semanas para trás aceita */
+  cargaInicial: { ate: string; semanas: number };
+  enviarEmail: EnviarEmail;
 }
 
 export const REGIOES: Record<string, string> = { N: 'Norte', NE: 'Nordeste', CO: 'Centro-Oeste', SE: 'Sudeste', S: 'Sul' };

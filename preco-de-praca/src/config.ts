@@ -25,6 +25,23 @@ export const config = {
   diasTeste: num('DIAS_TESTE', 30),
   // "Não comprei" aceito por no máximo N semanas seguidas por produto
   semCompraMaxSeguidas: num('SEM_COMPRA_MAX_SEGUIDAS', 2),
+  // Carga inicial do piloto: até esta data (YYYY-MM-DD, inclusive) aceita notas das últimas N semanas
+  // e não publica nenhuma semana; no dia seguinte publica todas de uma vez.
+  cargaInicialAte: process.env.CARGA_INICIAL_ATE || '',
+  cargaInicialSemanas: num('CARGA_INICIAL_SEMANAS', 8),
+  // E-mail (lembretes e recuperação de senha). Sem SMTP_URL, as mensagens só vão para o log.
+  smtpUrl: process.env.SMTP_URL || '',
+  emailRemetente: process.env.EMAIL_REMETENTE || 'Preço de Praça <nao-responda@precodepraca.com.br>',
+  appUrl: (process.env.APP_URL || process.env.RENDER_EXTERNAL_URL || 'http://localhost:3000').replace(/\/$/, ''),
+  // Versão vigente dos termos; mudar a versão pede novo aceite de todos
+  termosVersao: process.env.TERMOS_VERSAO || '2026-10-piloto-v1',
+  // Dados do operador do serviço que aparecem nos termos e na política de privacidade
+  operador: {
+    nome: process.env.OPERADOR_NOME || '[nome da empresa operadora]',
+    cnpj: process.env.OPERADOR_CNPJ || '[CNPJ]',
+    email: process.env.OPERADOR_EMAIL || '[e-mail de contato]',
+    foro: process.env.OPERADOR_FORO || '[cidade/UF]',
+  },
   // Desvio máximo em relação à mediana de referência antes de mandar para revisão manual
   desvioRevisao: num('DESVIO_REVISAO', 0.15),
 };

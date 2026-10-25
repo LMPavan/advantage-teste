@@ -198,3 +198,5 @@ input[type=text],input[type=email],input[type=password]{background:var(--surface
 .pill.rev{color:var(--warn-ink);background:var(--warn-bg)}
 .pill.no{color:var(--bad);border-color:currentColor}
 .pos-bar .avgm{background:var(--ink-2)}
+.entrada input[type=checkbox]{width:auto;flex:none}
+a{color:var(--accent)}

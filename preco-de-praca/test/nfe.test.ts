@@ -8,6 +8,8 @@ const ctx = (extra: Partial<ContextoValidacao> = {}): ContextoValidacao => ({
   cnpjPosto: CNPJ_POSTO,
   municipioPosto: null,
   agora: new Date('2026-10-25T12:00:00-03:00'),
+  semanasFechadas: new Set(),
+  cargaInicialDesde: null,
   municipioExiste: c => ['3509502', '3536505', '3550308'].includes(c),
   faixaProduto: () => ({ min: 2, max: 9.5 }),
   medianaReferencia: () => null,

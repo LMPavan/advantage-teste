@@ -21,12 +21,13 @@ async function carregar() {
   try {
     [p, rev, dist] = await Promise.all([api('/api/admin/postos'), api('/api/admin/revisao'), api('/api/admin/distribuidoras')]);
   } catch (e) {
-    $.innerHTML = `<div class="empty" style="margin-top:20px">${e.status === 401 ? 'Entre com uma conta de administração na <a href="/">página inicial</a>.' : esc(e.message)}</div>`;
+    $.innerHTML = `<div class="empty" style="margin-top:20px">${e.status === 401 ? 'Entre com uma conta de administração na <a href="/">página inicial</a>.' : e.status === 403 && /termos/.test(e.message) ? 'Aceite os termos de uso na <a href="/">página inicial</a> antes de usar a administração.' : esc(e.message)}</div>`;
     return;
   }
   const completos = p.postos.filter(x => x.semanaAberta.completa).length;
   $.innerHTML = `
   ${senhaGerada ? `<div class="aviso" style="margin:16px 0 0">Senha provisória de <b>${esc(senhaGerada.email)}</b>: <code class="num" style="user-select:all">${esc(senhaGerada.senha)}</code>. Passe ao cliente; ela não aparece de novo.</div>` : ''}
+  ${p.cargaInicial ? `<div class="aviso" style="margin:16px 0 0">Carga inicial em andamento até ${data(p.cargaInicial.ate)}: notas aceitas desde a semana de ${data(p.cargaInicial.desde)} e nenhuma semana publicada até lá.</div>` : ''}
   <div class="kpis" style="margin-top:16px">
     <div class="kpi"><span class="eyebrow">Postos cadastrados</span><span class="v">${p.postos.length}</span></div>
     <div class="kpi"><span class="eyebrow">Semana em aberto completa</span><span class="v">${completos}</span><span class="foot">de ${p.postos.length} postos</span></div>
@@ -47,7 +48,7 @@ async function carregar() {
   <div class="card" style="margin-bottom:14px">
     <div class="card-head"><div><h2>Participantes</h2><p>Situação de cada posto na semana em aberto e acesso ao painel.</p></div></div>
     <div class="tbl-wrap"><table class="items"><thead><tr><th>Usuário</th><th>Posto</th><th>Microrregião</th><th>Semana em aberto</th><th>Painel</th><th>Acesso</th><th></th></tr></thead><tbody>
-      ${p.postos.map(x => `<tr><td class="t">${esc(x.usuario.nome)}<div class="muted">${esc(x.usuario.email)}</div></td>
+      ${p.postos.map(x => `<tr><td class="t">${esc(x.usuario.nome)}<div class="muted">${esc(x.usuario.email)}</div><div class="muted">${x.usuario.termosAceitosEm ? 'Termos aceitos em ' + data(x.usuario.termosAceitosEm) : 'Termos não aceitos'}</div></td>
         <td class="t">${esc(x.razaoSocial)}<div class="muted num">${esc(cnpjFmt(x.cnpj))}</div></td>
         <td class="t">${esc(x.micro ?? 'sem NF ainda')}</td>
         <td class="t">${Object.entries(x.semanaAberta.produtos).map(([k, v]) => `${PRODUTO[k]}: ${{ enviado: '✓', em_revisao: 'revisão', sem_compra: 'não comprou', pendente: '—' }[v]}`).join('<br>')}</td>

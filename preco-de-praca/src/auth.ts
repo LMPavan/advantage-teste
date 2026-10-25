@@ -30,7 +30,7 @@ export async function criarSessao(db: Db, usuarioId: number): Promise<{ token: s
   return { token, expira };
 }
 
-export interface Usuario { id: number; email: string; nome: string; admin: boolean }
+export interface Usuario { id: number; email: string; nome: string; admin: boolean; termosVersao: string | null }
 
 declare module 'fastify' {
   interface FastifyRequest { usuario: Usuario | null }
@@ -51,14 +51,14 @@ export async function carregarUsuario(db: Db, req: FastifyRequest): Promise<void
     const { rows } = await db.query<Usuario>(
       `UPDATE tokens_api t SET usado_em = now() FROM usuarios u
         WHERE t.hash = $1 AND t.revogado_em IS NULL AND u.id = t.usuario_id
-        RETURNING u.id, u.email, u.nome, u.admin`, [hashToken(bearer)]);
+        RETURNING u.id, u.email, u.nome, u.admin, u.termos_versao AS "termosVersao"`, [hashToken(bearer)]);
     req.usuario = rows[0] ?? null;
     return;
   }
   const token = req.cookies[COOKIE];
   if (!token) return;
   const { rows } = await db.query<Usuario>(
-    `SELECT u.id, u.email, u.nome, u.admin FROM sessoes s JOIN usuarios u ON u.id = s.usuario_id
+    `SELECT u.id, u.email, u.nome, u.admin, u.termos_versao AS "termosVersao" FROM sessoes s JOIN usuarios u ON u.id = s.usuario_id
       WHERE s.token = $1 AND s.expira_em > now()`, [token]);
   req.usuario = rows[0] ?? null;
 }

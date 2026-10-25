@@ -1,6 +1,6 @@
 import { config } from '../config.ts';
 import type { Db } from '../db.ts';
-import { prazoEncerrado } from '../dominio/semanas.ts';
+import { dataLocal, prazoEncerrado } from '../dominio/semanas.ts';
 import { calcularCelulas, type Contribuicao } from './sigilo.ts';
 
 /**
@@ -56,8 +56,9 @@ export async function fecharSemana(db: Db, semana: string, k = config.kMinimo): 
   return { postos, celulas: celulas.length, abertas: celulas.filter(c => c.aberta).length };
 }
 
-/** Fecha todas as semanas com notas cujo prazo já terminou. */
-export async function fecharSemanasPendentes(db: Db, agora = new Date()): Promise<string[]> {
+/** Fecha todas as semanas com notas cujo prazo já terminou. Durante a carga inicial não publica nada. */
+export async function fecharSemanasPendentes(db: Db, agora = new Date(), cargaInicialAte = config.cargaInicialAte): Promise<string[]> {
+  if (cargaInicialAte && dataLocal(agora) <= cargaInicialAte) return [];
   const { rows } = await db.query<{ semana: string }>(`
     SELECT DISTINCT n.semana FROM nfes n
      WHERE NOT EXISTS (SELECT 1 FROM semanas_fechadas f WHERE f.semana = n.semana)

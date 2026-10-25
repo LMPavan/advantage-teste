@@ -3,11 +3,13 @@ import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
 import fastifyStatic from '@fastify/static';
 import Fastify from 'fastify';
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { carregarUsuario } from './auth.ts';
 import { config } from './config.ts';
 import { carregarFaixas, carregarGeo, type Contexto } from './contexto.ts';
 import type { Db } from './db.ts';
+import { criarEnviador, type EnviarEmail } from './email.ts';
 import { carregarAutoridades } from './nfe/assinatura.ts';
 import { rotasAdmin } from './rotas/admin.ts';
 import { rotasConta } from './rotas/conta.ts';
@@ -18,6 +20,8 @@ export interface OpcoesApp {
   db: Db;
   agora?: () => Date;
   autoridades?: import('node:crypto').X509Certificate[];
+  cargaInicial?: { ate: string; semanas: number };
+  enviarEmail?: EnviarEmail;
   logger?: boolean;
 }
 
@@ -31,6 +35,8 @@ export async function criarApp(op: OpcoesApp) {
     autoridades: op.autoridades ?? carregarAutoridades(config.icpBrasilCaDir),
     geo: await carregarGeo(op.db),
     faixas: await carregarFaixas(op.db),
+    cargaInicial: op.cargaInicial ?? { ate: config.cargaInicialAte, semanas: config.cargaInicialSemanas },
+    enviarEmail: op.enviarEmail ?? criarEnviador(msg => app.log.info(msg)),
   };
   await app.register(cookie);
   await app.register(helmet, {
@@ -54,7 +60,28 @@ export async function criarApp(op: OpcoesApp) {
   });
   app.addContentTypeParser(['application/xml', 'text/xml'], { parseAs: 'string' }, (_req, body, done) => done(null, body));
   app.decorateRequest('usuario', null);
-  app.addHook('preHandler', async req => { if (req.url.startsWith('/api/')) await carregarUsuario(op.db, req); });
+  app.addHook('preHandler', async (req, reply) => {
+    if (!req.url.startsWith('/api/')) return;
+    await carregarUsuario(op.db, req);
+    // Sem aceite da versão vigente dos termos, só as rotas da própria conta funcionam
+    const livre = ['/api/eu', '/api/termos', '/api/sair', '/api/config-publica'].some(r => req.url.split('?')[0] === r);
+    if (req.usuario && req.usuario.termosVersao !== config.termosVersao && !livre) {
+      return reply.code(403).send({ erro: 'Aceite os termos de uso para continuar.', motivo: 'termos' });
+    }
+  });
+
+  // Termos e política de privacidade, com os dados do operador vindos da configuração
+  const pagina = (arquivo: string, titulo: string) => {
+    const ler = (n: string) => readFileSync(fileURLToPath(new URL(`./termos/${n}`, import.meta.url)), 'utf8');
+    const esc = (v: string) => v.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!));
+    const valores: Record<string, string> = {
+      TITULO: titulo, VERSAO: config.termosVersao, OPERADOR_NOME: config.operador.nome,
+      OPERADOR_CNPJ: config.operador.cnpj, OPERADOR_EMAIL: config.operador.email, OPERADOR_FORO: config.operador.foro,
+    };
+    return (ler('cabecalho.html') + ler(arquivo) + ler('rodape.html')).replace(/\{\{(\w+)\}\}/g, (_, k: string) => esc(valores[k] ?? ''));
+  };
+  app.get('/termos', async (_req, reply) => reply.type('text/html; charset=utf-8').send(pagina('termos.html', 'Termos de uso')));
+  app.get('/privacidade', async (_req, reply) => reply.type('text/html; charset=utf-8').send(pagina('privacidade.html', 'Política de privacidade')));
 
   rotasConta(app, ctx);
   rotasNfe(app, ctx);

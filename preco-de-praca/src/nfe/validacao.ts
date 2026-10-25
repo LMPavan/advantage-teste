@@ -13,6 +13,10 @@ export interface ContextoValidacao {
   cnpjPosto: string;
   municipioPosto: string | null;
   agora: Date;
+  /** Semanas já publicadas: notas delas não entram mais */
+  semanasFechadas: Set<string>;
+  /** Durante a carga inicial, a semana mais antiga aceita; fora dela, null */
+  cargaInicialDesde: string | null;
   municipioExiste: (codigo: string) => boolean;
   faixaProduto: (produto: ProdutoId) => { min: number; max: number };
   /** Mediana publicada mais recente da área do posto, para o teste de plausibilidade */
@@ -61,6 +65,9 @@ export function validarNfe(xml: string, ctx: ContextoValidacao): ResultadoValida
   } else {
     semana = semanaDoInstante(nfe.emitidaEm);
     if (nfe.emitidaEm.getTime() > ctx.agora.getTime() + 864e5) add('recusa', 'Data de emissão no futuro.');
+    else if (ctx.semanasFechadas.has(semana)) add('recusa', `A semana de ${dataBr(semana)} já foi publicada e não recebe mais notas.`);
+    else if (ctx.cargaInicialDesde && semana >= ctx.cargaInicialDesde) add('ok', `Emitida em ${nfe.emitidaEm.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}, entra na carga inicial (semana de ${dataBr(semana)}).`);
+    else if (ctx.cargaInicialDesde) add('recusa', `A carga inicial aceita notas a partir da semana de ${dataBr(ctx.cargaInicialDesde)}.`);
     else if (prazoEncerrado(semana, ctx.agora)) add('recusa', `O prazo para notas da semana de ${dataBr(semana)} terminou em ${prazoEnvio(semana).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}.`);
     else add('ok', `Emitida em ${nfe.emitidaEm.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}, conta para a semana de ${dataBr(semana)}.`);
   }

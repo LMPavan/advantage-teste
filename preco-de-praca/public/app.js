@@ -63,36 +63,95 @@ document.addEventListener('scroll', () => { $tip.hidden = true; }, true);
 
 /* ---------- entrada ---------- */
 let CONVITE = false;
-function telaEntrada(modo = 'entrar', erro = '') {
+const postJson = (caminho, corpo) => api(caminho, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(corpo) });
+const LINKS_TERMOS = '<a href="/termos" target="_blank" rel="noopener">termos de uso</a> e a <a href="/privacidade" target="_blank" rel="noopener">política de privacidade</a>';
+
+function telaEntrada(modo = 'entrar', erro = '', aviso = '') {
   document.getElementById('topo').hidden = true;
-  const cad = modo === 'cadastro';
+  const cad = modo === 'cadastro', esqueci = modo === 'esqueci', redefinir = modo === 'redefinir';
+  let campos = '', titulo = 'Entrar', botao = 'Entrar', rodape = '';
+  if (cad) {
+    titulo = 'Cadastrar posto'; botao = 'Cadastrar e começar o teste grátis';
+    campos = `
+      <div class="field"><label for="c-nome">Seu nome</label><input type="text" id="c-nome" autocomplete="name" required></div>
+      <div class="field"><label for="c-razao">Razão social do posto</label><input type="text" id="c-razao" required></div>
+      <div class="field"><label for="c-cnpj">CNPJ do posto</label><input type="text" id="c-cnpj" inputmode="numeric" placeholder="00.000.000/0000-00" required></div>
+      ${CONVITE ? '<div class="field"><label for="c-convite">Código de convite</label><input type="text" id="c-convite" required></div>' : ''}
+      <div class="field"><label for="c-email">E-mail</label><input type="email" id="c-email" autocomplete="email" required></div>
+      <div class="field"><label for="c-senha">Senha (mínimo 8 caracteres)</label><input type="password" id="c-senha" autocomplete="new-password" required minlength="8"></div>
+      <label class="ink2" style="display:flex;gap:8px;align-items:flex-start;font-size:13px"><input type="checkbox" id="c-termos" style="margin-top:3px"> <span>Li e aceito os ${LINKS_TERMOS}, em nome da empresa cadastrada.</span></label>`;
+    rodape = '<p class="muted" style="font-size:12px;margin:0">A cidade do posto é definida pela primeira NF-e que você enviar, pelo endereço do destinatário.</p>';
+  } else if (esqueci) {
+    titulo = 'Recuperar senha'; botao = 'Enviar link por e-mail';
+    campos = '<div class="field"><label for="c-email">E-mail da conta</label><input type="email" id="c-email" autocomplete="email" required></div>';
+  } else if (redefinir) {
+    titulo = 'Criar senha nova'; botao = 'Salvar senha e entrar';
+    campos = '<div class="field"><label for="c-senha">Senha nova (mínimo 8 caracteres)</label><input type="password" id="c-senha" autocomplete="new-password" required minlength="8"></div>';
+  } else {
+    campos = `
+      <div class="field"><label for="c-email">E-mail</label><input type="email" id="c-email" autocomplete="email" required></div>
+      <div class="field"><label for="c-senha">Senha</label><input type="password" id="c-senha" autocomplete="current-password" required></div>`;
+  }
   $app.innerHTML = `<div class="entrada">
     <div class="brand"><h1 style="font-size:28px">Preço de Praça</h1></div>
     <p class="ink2" style="margin:0">Veja quanto os postos da sua região pagam às distribuidoras. Para ver, você compartilha toda semana a NF de compra.</p>
     <form class="card" id="f-entrada" novalidate>
-      <h2>${cad ? 'Cadastrar posto' : 'Entrar'}</h2>
-      ${cad ? `
-        <div class="field"><label for="c-nome">Seu nome</label><input type="text" id="c-nome" autocomplete="name" required></div>
-        <div class="field"><label for="c-razao">Razão social do posto</label><input type="text" id="c-razao" required></div>
-        <div class="field"><label for="c-cnpj">CNPJ do posto</label><input type="text" id="c-cnpj" inputmode="numeric" placeholder="00.000.000/0000-00" required></div>
-        ${CONVITE ? '<div class="field"><label for="c-convite">Código de convite</label><input type="text" id="c-convite" required></div>' : ''}` : ''}
-      <div class="field"><label for="c-email">E-mail</label><input type="email" id="c-email" autocomplete="email" required></div>
-      <div class="field"><label for="c-senha">Senha</label><input type="password" id="c-senha" autocomplete="${cad ? 'new-password' : 'current-password'}" required minlength="8"></div>
-      ${erro ? `<p class="erro" role="alert">${esc(erro)}</p>` : ''}
-      <button class="btn" type="submit">${cad ? 'Cadastrar e começar o teste grátis' : 'Entrar'}</button>
-      <button class="btn ghost" type="button" id="trocar">${cad ? 'Já tenho conta' : 'Cadastrar meu posto'}</button>
-      ${cad ? '<p class="muted" style="font-size:12px;margin:0">A cidade do posto é definida pela primeira NF-e que você enviar, pelo endereço do destinatário.</p>' : '<p class="muted" style="font-size:12px;margin:0">Esqueceu a senha? Peça uma senha provisória à equipe do Preço de Praça.</p>'}
+      <h2>${titulo}</h2>
+      ${campos}
+      ${aviso ? `<p class="ink2" role="status" style="margin:0">${esc(aviso)}</p>` : ''}
+      <p class="erro" role="alert" id="erro-entrada"${erro ? '' : ' hidden'}>${esc(erro)}</p>
+      <button class="btn" type="submit">${botao}</button>
+      ${redefinir ? '' : `<button class="btn ghost" type="button" id="trocar">${cad || esqueci ? 'Voltar para entrar' : 'Cadastrar meu posto'}</button>`}
+      ${modo === 'entrar' ? '<button class="sair" type="button" id="esqueci" style="align-self:flex-start">Esqueci minha senha</button>' : ''}
+      ${rodape}
     </form></div>`;
-  document.getElementById('trocar').onclick = () => telaEntrada(cad ? 'entrar' : 'cadastro');
+  document.getElementById('trocar')?.addEventListener('click', () => telaEntrada(cad || esqueci ? 'entrar' : 'cadastro'));
+  document.getElementById('esqueci')?.addEventListener('click', () => telaEntrada('esqueci'));
+  // Erros aparecem no próprio formulário, sem apagar o que a pessoa digitou
+  const mostrarErro = msg => { const el = document.getElementById('erro-entrada'); el.textContent = msg; el.hidden = false; };
   document.getElementById('f-entrada').onsubmit = async e => {
     e.preventDefault();
     const v = id => document.getElementById(id)?.value ?? '';
     try {
-      if (cad) await api('/api/cadastro', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ nome: v('c-nome'), razaoSocial: v('c-razao'), cnpj: v('c-cnpj'), email: v('c-email'), senha: v('c-senha'), convite: v('c-convite') }) });
-      else await api('/api/entrar', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: v('c-email'), senha: v('c-senha') }) });
+      if (cad) {
+        if (!document.getElementById('c-termos').checked) return mostrarErro('Para se cadastrar, aceite os termos de uso e a política de privacidade.');
+        await postJson('/api/cadastro', { nome: v('c-nome'), razaoSocial: v('c-razao'), cnpj: v('c-cnpj'), email: v('c-email'), senha: v('c-senha'), convite: v('c-convite'), aceiteTermos: true });
+      } else if (esqueci) {
+        await postJson('/api/senha/esqueci', { email: v('c-email') });
+        return telaEntrada('entrar', '', 'Se o e-mail tiver conta, enviamos um link para criar uma senha nova. Ele vale por 1 hora. Se não chegar, confira o spam ou fale com a equipe do Preço de Praça.');
+      } else if (redefinir) {
+        await postJson('/api/senha/redefinir', { codigo: new URLSearchParams(location.search).get('redefinir'), senha: v('c-senha') });
+        history.replaceState(null, '', '/');
+      } else {
+        await postJson('/api/entrar', { email: v('c-email'), senha: v('c-senha') });
+      }
       iniciar();
-    } catch (err) { telaEntrada(modo, err.message); }
+    } catch (err) { mostrarErro(err.message); }
   };
+}
+
+function telaTermos(erro = '') {
+  document.getElementById('topo').hidden = true;
+  $app.innerHTML = `<div class="entrada"><form class="card" id="f-termos" novalidate>
+    <h2>Termos de uso</h2>
+    <p class="ink2" style="margin:0">Para continuar, leia e aceite os ${LINKS_TERMOS} do Preço de Praça.</p>
+    <label class="ink2" style="display:flex;gap:8px;align-items:flex-start;font-size:13px"><input type="checkbox" id="t-aceite" style="margin-top:3px"> <span>Li e aceito, em nome da empresa cadastrada.</span></label>
+    ${erro ? `<p class="erro" role="alert">${esc(erro)}</p>` : ''}
+    <button class="btn" type="submit">Continuar</button>
+    <button class="sair" type="button" id="t-sair" style="align-self:flex-start">Sair</button>
+  </form></div>`;
+  document.getElementById('t-sair').onclick = async () => { await api('/api/sair', { method: 'POST' }); telaEntrada(); };
+  document.getElementById('f-termos').onsubmit = async e => {
+    e.preventDefault();
+    if (!document.getElementById('t-aceite').checked) return telaTermos('Marque o aceite para continuar.');
+    try { await postJson('/api/termos', { aceito: true }); iniciar(); } catch (err) { telaTermos(err.message); }
+  };
+}
+
+function avisoCarga() {
+  const c = S.eu?.cargaInicial;
+  if (!c) return '';
+  return `<div class="aviso" style="margin:0 0 14px"><b>Carga inicial até ${dataLonga(c.ate)}.</b> Envie também as notas de compra desde a semana de ${dataLonga(c.desde)}. Nesse período nenhuma semana é publicada; no dia seguinte todas saem de uma vez, já com histórico.</div>`;
 }
 
 /* ---------- topo ---------- */
@@ -357,7 +416,7 @@ function renderNF() {
     </div>`;
   }
   const hist = S.historico?.nfes ?? [];
-  return `<p class="scope" style="margin:0 0 14px">Semana de compra de ${dataCurta(sem.semana)} · prazo de envio: ${esc(prazo)}. "Não comprei" vale por até 2 semanas seguidas para cada produto.</p>
+  return `${avisoCarga()}<p class="scope" style="margin:0 0 14px">Semana de compra de ${dataCurta(sem.semana)} · prazo de envio: ${esc(prazo)}. "Não comprei" vale por até 2 semanas seguidas para cada produto.</p>
   <div class="grid">
     <div class="c5" style="display:flex;flex-direction:column;gap:14px;min-width:0">${postos.map(p => checklistPosto(p, postos.length > 1)).join('')}</div>
     <div class="c7" style="display:flex;flex-direction:column;gap:14px;min-width:0">
@@ -432,6 +491,9 @@ curl "${esc(origem)}/api/painel?semana=AAAA-MM-DD&amp;produto=gc&amp;nivel=micro
         <p class="muted" style="font-size:12px">Produtos: gc, et, s10, s500. Níveis: brasil, regiao, uf, meso, micro. Semanas publicadas em /api/semanas.</p>
       </details>
     </div>
+    <div class="card c12"><div class="card-head"><div><h2>E-mails</h2><p>Lembrete na segunda e na terça quando faltar nota da semana, e aviso na quarta quando os preços forem publicados.</p></div></div>
+      <label class="ink2" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="pref-lembretes" ${S.eu.lembretes ? 'checked' : ''}> Receber lembretes por e-mail em ${esc(S.eu.usuario.email)}</label>
+      <p class="muted" style="font-size:12px;margin:10px 0 0"><a href="/termos" target="_blank" rel="noopener">Termos de uso</a> · <a href="/privacidade" target="_blank" rel="noopener">Política de privacidade</a></p></div>
     ${S.eu.usuario.admin ? '<div class="card c12"><h2>Administração</h2><p class="ink2" style="margin:6px 0 10px">Participantes, notas em revisão e senhas provisórias.</p><a class="btn" href="/admin.html">Abrir administração</a></div>' : ''}
   </div>`;
 }
@@ -487,7 +549,7 @@ async function carregar() {
   if (S.tab === 'how') { $app.innerHTML = renderRegras(); return; }
   if (!S.eu.liberado) { $app.innerHTML = htmlBloqueio(); return; }
   if (!S.semanas.publicadas.length) {
-    $app.innerHTML = '<div class="empty" style="margin-top:20px">Ainda não há semana publicada. A primeira sai na quarta-feira seguinte ao fechamento da semana de envio.</div>';
+    $app.innerHTML = avisoCarga() + `<div class="empty" style="margin-top:20px">${S.eu.cargaInicial ? `Os preços aparecem a partir de ${dataLonga(S.eu.cargaInicial.ate)}, quando a carga inicial termina.` : 'Ainda não há semana publicada. A primeira sai na quarta-feira seguinte ao fechamento da semana de envio.'}</div>`;
     return;
   }
   const [nivel, area] = escopo();
@@ -527,6 +589,11 @@ $app.addEventListener('click', async e => {
 });
 $app.addEventListener('change', async e => {
   if (e.target.id === 'nf-arquivo' && e.target.files.length) { await enviarArquivos([...e.target.files]); return; }
+  if (e.target.id === 'pref-lembretes') {
+    try { await postJson('/api/preferencias', { lembretes: e.target.checked }); toast(e.target.checked ? 'Lembretes ligados.' : 'Lembretes desligados.'); await atualizarConta(); }
+    catch (err) { toast(err.message); }
+    return;
+  }
   const sc = e.target.dataset?.semCompra;
   if (sc) {
     try { await api('/api/sem-compra?posto=' + e.target.dataset.posto, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ produto: sc, marcado: e.target.checked }) }); }
@@ -563,7 +630,11 @@ document.getElementById('tabs').addEventListener('click', e => {
 
 async function iniciar() {
   CONVITE = (await api('/api/config-publica').catch(() => ({}))).convite ?? false;
-  try { await atualizarConta(); } catch (e) { if (e.status === 401) return telaEntrada(); throw e; }
+  try { await atualizarConta(); } catch (e) {
+    if (e.status !== 401) throw e;
+    return telaEntrada(new URLSearchParams(location.search).has('redefinir') ? 'redefinir' : 'entrar');
+  }
+  if (S.eu.termosPendentes) return telaTermos();
   document.getElementById('topo').hidden = false;
   [S.geo, S.semanas] = await Promise.all([api('/api/geo'), api('/api/semanas')]);
   S.semana = S.semanas.publicadas[0]?.semana ?? '';

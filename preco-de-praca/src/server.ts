@@ -2,7 +2,9 @@ import { criarApp } from './app.ts';
 import { gerarHash } from './auth.ts';
 import { config } from './config.ts';
 import { criarPool, migrar } from './db.ts';
+import { criarEnviador } from './email.ts';
 import { fecharSemanasPendentes } from './estatistica/fechamento.ts';
+import { enviarLembretes } from './lembretes.ts';
 
 const db = criarPool();
 await migrar(db);
@@ -20,13 +22,28 @@ if (!config.icpBrasilCaDir) app.log.warn('certificados da ICP-Brasil ausentes: a
 // Fecha as semanas cujo prazo terminou. Roda ao subir e a cada hora; é idempotente.
 async function fechar() {
   try {
-    const fechadas = await fecharSemanasPendentes(db);
+    const fechadas = await fecharSemanasPendentes(db, new Date(), config.cargaInicialAte);
     if (fechadas.length) app.log.info({ fechadas }, 'semanas publicadas');
   } catch (e) {
     app.log.error(e, 'falha ao fechar semanas');
   }
 }
-await fechar();
-setInterval(fechar, 3600e3).unref();
+// Lembretes por e-mail; cada um é registrado antes do envio e não se repete
+const enviarEmail = criarEnviador(msg => app.log.info(msg));
+async function lembrar() {
+  try {
+    const n = await enviarLembretes(db, enviarEmail);
+    if (n) app.log.info(`${n} lembretes enviados`);
+  } catch (e) {
+    app.log.error(e, 'falha ao enviar lembretes');
+  }
+}
+async function rotinaHoraria() {
+  await fechar();
+  await lembrar();
+}
+await rotinaHoraria();
+setInterval(rotinaHoraria, 3600e3).unref();
+if (!config.smtpUrl) app.log.warn('SMTP_URL ausente: lembretes e recuperação de senha não serão enviados por e-mail');
 
 await app.listen({ port: config.porta, host: '0.0.0.0' });

@@ -1,10 +1,11 @@
+import { randomBytes } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { situacaoPostos } from '../acesso.ts';
-import { COOKIE, conferirSenha, criarSessao, exigirLogin, gerarHash, gerarTokenApi } from '../auth.ts';
+import { COOKIE, conferirSenha, criarSessao, exigirLogin, gerarHash, gerarTokenApi, hashToken } from '../auth.ts';
 import { config } from '../config.ts';
 import { areasDoMunicipio, nomeArea, type Contexto } from '../contexto.ts';
-import { dataLocal, somarDias } from '../dominio/semanas.ts';
+import { dataLocal, inicioCargaInicial, somarDias } from '../dominio/semanas.ts';
 import { cnpjValido, somenteDigitos } from '../nfe/documentos.ts';
 
 const Cadastro = z.object({
@@ -14,6 +15,7 @@ const Cadastro = z.object({
   cnpj: z.string().transform(somenteDigitos).refine(cnpjValido, 'CNPJ inválido.'),
   razaoSocial: z.string().trim().min(2, 'Informe a razão social do posto.'),
   convite: z.string().trim().optional(),
+  aceiteTermos: z.literal(true, { message: 'Aceite os termos de uso e a política de privacidade para continuar.' }),
 });
 
 const NovoPosto = z.object({
@@ -39,8 +41,8 @@ export function rotasConta(app: FastifyInstance, ctx: Contexto): void {
     const cliente = await db.connect();
     try {
       await cliente.query('BEGIN');
-      const u = await cliente.query<{ id: number }>('INSERT INTO usuarios (email, nome, senha_hash) VALUES ($1, $2, $3) RETURNING id',
-        [d.email, d.nome, await gerarHash(d.senha)]);
+      const u = await cliente.query<{ id: number }>(`INSERT INTO usuarios (email, nome, senha_hash, termos_versao, termos_aceitos_em, termos_ip)
+        VALUES ($1, $2, $3, $4, now(), $5) RETURNING id`, [d.email, d.nome, await gerarHash(d.senha), config.termosVersao, req.ip]);
       const usuarioId = u.rows[0]!.id;
       await cliente.query('INSERT INTO postos (usuario_id, cnpj, razao_social, teste_ate) VALUES ($1, $2, $3, $4)',
         [usuarioId, d.cnpj, d.razaoSocial, somarDias(dataLocal(ctx.agora()), config.diasTeste)]);
@@ -89,10 +91,69 @@ export function rotasConta(app: FastifyInstance, ctx: Contexto): void {
       }),
       liberado: postos.length > 0 && postos.every(p => p.liberado),
       demo: config.demo,
+      termosPendentes: u.termosVersao !== config.termosVersao,
+      cargaInicial: cargaInicial(),
+      lembretes: (await db.query<{ lembretes: boolean }>('SELECT lembretes FROM usuarios WHERE id = $1', [u.id])).rows[0]?.lembretes ?? true,
     };
   });
 
-  app.get('/api/config-publica', async () => ({ convite: !!config.codigoConvite }));
+  const cargaInicial = () => {
+    const desde = inicioCargaInicial(ctx.agora(), ctx.cargaInicial.ate, ctx.cargaInicial.semanas);
+    return desde ? { desde, ate: ctx.cargaInicial.ate } : null;
+  };
+
+  app.post('/api/termos', async (req, reply) => {
+    const u = exigirLogin(req, reply); if (!u) return;
+    if ((req.body as { aceito?: unknown } | null)?.aceito !== true) return reply.code(400).send({ erro: 'Marque o aceite para continuar.' });
+    await db.query('UPDATE usuarios SET termos_versao = $1, termos_aceitos_em = now(), termos_ip = $2 WHERE id = $3', [config.termosVersao, req.ip, u.id]);
+    return { ok: true };
+  });
+
+  app.post('/api/preferencias', async (req, reply) => {
+    const u = exigirLogin(req, reply); if (!u) return;
+    const lembretes = (req.body as { lembretes?: unknown } | null)?.lembretes;
+    if (typeof lembretes !== 'boolean') return reply.code(400).send({ erro: 'Preferência inválida.' });
+    await db.query('UPDATE usuarios SET lembretes = $1 WHERE id = $2', [lembretes, u.id]);
+    return { ok: true };
+  });
+
+  // Recuperação de senha: a resposta é sempre a mesma, para não revelar quais e-mails têm conta
+  app.post('/api/senha/esqueci', limiteAcesso, async (req, reply) => {
+    const email = String((req.body as { email?: unknown } | null)?.email ?? '').trim().toLowerCase();
+    const { rows } = await db.query<{ id: number; nome: string }>('SELECT id, nome FROM usuarios WHERE email = $1', [email]);
+    const u = rows[0];
+    if (u) {
+      const codigo = randomBytes(32).toString('base64url');
+      await db.query("INSERT INTO redefinicoes_senha (hash, usuario_id, expira_em) VALUES ($1, $2, now() + interval '1 hour')", [hashToken(codigo), u.id]);
+      try {
+        await ctx.enviarEmail({
+          para: email,
+          assunto: 'Redefinir sua senha do Preço de Praça',
+          texto: `Olá, ${u.nome}.\n\nPara criar uma senha nova, abra o link abaixo. Ele vale por 1 hora e só pode ser usado uma vez.\n\n${config.appUrl}/?redefinir=${codigo}\n\nSe você não pediu, ignore este e-mail: sua senha continua a mesma.`,
+        });
+      } catch (e) {
+        req.log.error(e, 'falha ao enviar e-mail de redefinição');
+      }
+    }
+    return reply.send({ ok: true });
+  });
+
+  const Redefinir = z.object({ codigo: z.string().min(10), senha: z.string().min(8, 'A senha precisa ter pelo menos 8 caracteres.') });
+  app.post('/api/senha/redefinir', limiteAcesso, async (req, reply) => {
+    const r = Redefinir.safeParse(req.body);
+    if (!r.success) return reply.code(400).send({ erro: r.error.issues[0]!.message });
+    const { rows } = await db.query<{ usuario_id: number }>(`UPDATE redefinicoes_senha SET usada_em = now()
+      WHERE hash = $1 AND usada_em IS NULL AND expira_em > now() RETURNING usuario_id`, [hashToken(r.data.codigo)]);
+    const id = rows[0]?.usuario_id;
+    if (!id) return reply.code(400).send({ erro: 'Este link expirou ou já foi usado. Peça um novo.' });
+    await db.query('UPDATE usuarios SET senha_hash = $1 WHERE id = $2', [await gerarHash(r.data.senha), id]);
+    await db.query('DELETE FROM sessoes WHERE usuario_id = $1', [id]);
+    const s = await criarSessao(db, id);
+    gravarCookie(reply, s.token, s.expira);
+    return { ok: true };
+  });
+
+  app.get('/api/config-publica', async () => ({ convite: !!config.codigoConvite, cargaInicial: cargaInicial() }));
 
   // Rede com vários postos: cada CNPJ é um posto, todos na mesma conta
   app.post('/api/postos', async (req, reply) => {

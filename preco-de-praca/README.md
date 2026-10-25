@@ -56,10 +56,15 @@ A **assinatura digital** é verificada (XMLDSig, RSA-SHA1/C14N como a SEFAZ usa)
 
 Notas sem assinatura, com preço a mais de 15% da mediana da região ou CFOP incomum vão para **revisão manual** (`/api/admin/revisao`).
 
+## Termos, e-mails e carga inicial
+
+- **Termos de uso e política de privacidade** (`src/termos/`, publicados em `/termos` e `/privacidade`): aceite obrigatório no cadastro, com versão, data e IP. Trocar `TERMOS_VERSAO` exige novo aceite de todos. Os textos são minutas para revisão jurídica.
+- **E-mails** (`src/lembretes.ts`, `src/email.ts`): lembrete na segunda (9h) e na terça (12h) para quem não completou a semana anterior, aviso de publicação na quarta (8h) e recuperação de senha. Configuração em `SMTP_URL`.
+- **Carga inicial** (`CARGA_INICIAL_ATE`): durante a janela aceita notas das últimas semanas e não publica nada; no dia seguinte publica tudo de uma vez.
+
 ## Próximos passos
 
 - Pagamento recorrente (gateway com Pix e cartão). Hoje o posto começa com teste de 30 dias e a administração muda o acesso manualmente.
-- Recuperação de senha por e-mail. Hoje a administração gera uma senha provisória.
 - Consulta da chave na SEFAZ (situação autorizada/cancelada), que exige o certificado A1 da empresa.
 - Leitura de foto/PDF do DANFE com IA, extraindo a chave e conferindo na SEFAZ.
 - Captura automática das notas pelo serviço de Distribuição de DF-e, com o certificado do posto.

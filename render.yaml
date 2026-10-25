@@ -20,6 +20,20 @@ services:
         sync: false
       - key: ADMIN_SENHA_INICIAL
         sync: false
+      - key: CARGA_INICIAL_ATE   # último dia da carga inicial (AAAA-MM-DD); vazio = sem carga inicial
+        sync: false
+      - key: SMTP_URL            # ex.: smtps://usuario:senha@smtp.provedor.com:465
+        sync: false
+      - key: EMAIL_REMETENTE     # ex.: Preço de Praça <contato@seudominio.com.br>
+        sync: false
+      - key: OPERADOR_NOME       # dados que aparecem nos termos e na política de privacidade
+        sync: false
+      - key: OPERADOR_CNPJ
+        sync: false
+      - key: OPERADOR_EMAIL
+        sync: false
+      - key: OPERADOR_FORO       # ex.: São Paulo/SP
+        sync: false
 databases:
   - name: preco-de-praca-db
     plan: basic-256mb

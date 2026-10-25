@@ -3,7 +3,9 @@ import { z } from 'zod';
 import { randomBytes } from 'node:crypto';
 import { situacaoPostos } from '../acesso.ts';
 import { exigirLogin, gerarHash } from '../auth.ts';
+import { config } from '../config.ts';
 import { nomeArea, areasDoMunicipio } from '../contexto.ts';
+import { inicioCargaInicial } from '../dominio/semanas.ts';
 import type { Contexto } from '../contexto.ts';
 
 export function rotasAdmin(app: FastifyInstance, ctx: Contexto): void {
@@ -55,14 +57,16 @@ export function rotasAdmin(app: FastifyInstance, ctx: Contexto): void {
   // Participantes do piloto e a situação de cada posto na semana
   app.get('/api/admin/postos', async (req, reply) => {
     if (!exigirAdmin(req, reply)) return;
-    const { rows: usuarios } = await db.query<{ id: number; email: string; nome: string; admin: boolean }>('SELECT id, email, nome, admin FROM usuarios ORDER BY id');
+    const { rows: usuarios } = await db.query<{ id: number; email: string; nome: string; admin: boolean; termos_aceitos_em: string | null; termos_versao: string | null }>(
+      'SELECT id, email, nome, admin, termos_aceitos_em, termos_versao FROM usuarios ORDER BY id');
     const situacoes = await Promise.all(usuarios.map(u => situacaoPostos(db, u.id, ctx.agora())));
     const out = usuarios.flatMap((u, i) => situacoes[i]!.map(p => {
       const a = p.municipio ? areasDoMunicipio(ctx.geo, p.municipio) : null;
-      return { usuario: { id: u.id, email: u.email, nome: u.nome }, ...p, micro: a ? nomeArea(ctx.geo, 'micro', a.micro) : null };
+      return { usuario: { id: u.id, email: u.email, nome: u.nome, termosAceitosEm: u.termos_versao === config.termosVersao ? u.termos_aceitos_em : null }, ...p, micro: a ? nomeArea(ctx.geo, 'micro', a.micro) : null };
     }));
     const semanas = await db.query('SELECT semana, postos, fechada_em FROM semanas_fechadas ORDER BY semana DESC LIMIT 8');
-    return { postos: out, semanas: semanas.rows };
+    const desde = inicioCargaInicial(ctx.agora(), ctx.cargaInicial.ate, ctx.cargaInicial.semanas);
+    return { postos: out, semanas: semanas.rows, cargaInicial: desde ? { desde, ate: ctx.cargaInicial.ate } : null };
   });
 
   // Sem e-mail no piloto: a administração gera uma senha provisória e passa ao cliente

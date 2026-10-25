@@ -7,7 +7,7 @@ import { exigirLogin } from '../auth.ts';
 import { config } from '../config.ts';
 import { areasDoMunicipio, type Contexto } from '../contexto.ts';
 import { PRODUTO_IDS, type ProdutoId } from '../dominio/produtos.ts';
-import { prazoEncerrado, semanaDoInstante, somarDias } from '../dominio/semanas.ts';
+import { inicioCargaInicial, prazoEncerrado, semanaDoInstante, somarDias } from '../dominio/semanas.ts';
 import { formatarCnpj } from '../nfe/documentos.ts';
 import { assinarNfe, gerarNfeXml } from '../nfe/exemplo.ts';
 import { ErroLeitura, lerNfe } from '../nfe/parser.ts';
@@ -59,12 +59,16 @@ export function rotasNfe(app: FastifyInstance, ctx: Contexto): void {
     const posto = meus[0];
     if (!posto) return reply.code(404).send({ erro: 'Cadastre um posto antes de enviar notas.' });
     const refs = await medianasReferencia(ctx, posto.municipio ?? destino);
+    const fechadas = await db.query<{ semana: string }>('SELECT semana FROM semanas_fechadas');
+    const agora = ctx.agora();
     let r;
     try {
       r = validarNfe(xml, {
         cnpjPosto: posto.cnpj,
         municipioPosto: posto.municipio,
-        agora: ctx.agora(),
+        agora,
+        semanasFechadas: new Set(fechadas.rows.map(f => f.semana)),
+        cargaInicialDesde: inicioCargaInicial(agora, ctx.cargaInicial.ate, ctx.cargaInicial.semanas),
         municipioExiste: c => ctx.geo.municipios.has(c),
         faixaProduto: p => ctx.faixas.get(p)!,
         medianaReferencia: p => refs.get(p) ?? null,

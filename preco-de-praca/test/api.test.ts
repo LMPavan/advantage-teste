@@ -5,6 +5,9 @@ import { fecharSemanasPendentes } from '../src/estatistica/fechamento.ts';
 import { completarCnpj } from '../src/nfe/documentos.ts';
 import type { ProdutoId } from '../src/dominio/produtos.ts';
 import { CA_TESTE, notaAssinada } from './apoio.ts';
+import type { Email } from '../src/email.ts';
+import { criarSessao } from '../src/auth.ts';
+import { enviarLembretes } from '../src/lembretes.ts';
 
 // Precisa de um PostgreSQL: DATABASE_URL_TEST (padrão: banco local precodepraca_test). O esquema é recriado a cada execução.
 const URL_TESTE = process.env.DATABASE_URL_TEST ?? 'postgres://app:app@localhost:5432/precodepraca_test';
@@ -12,10 +15,12 @@ const URL_TESTE = process.env.DATABASE_URL_TEST ?? 'postgres://app:app@localhost
 let db: Db;
 let app: Awaited<ReturnType<typeof criarApp>>;
 let agora = new Date('2026-10-14T10:00:00-03:00');
+const emails: Email[] = [];
+const enviarEmail = async (e: Email) => { emails.push(e); };
 
 async function cadastrar(n: number): Promise<{ cookie: string; cnpj: string }> {
   const cnpj = completarCnpj(String(10000000 + n) + '0001');
-  const r = await app.inject({ method: 'POST', url: '/api/cadastro', payload: { nome: `Posto ${n}`, email: `p${n}@teste.com`, senha: 'senha-segura', cnpj, razaoSocial: `Posto ${n} Ltda` } });
+  const r = await app.inject({ method: 'POST', url: '/api/cadastro', payload: { nome: `Posto ${n}`, email: `p${n}@teste.com`, senha: 'senha-segura', cnpj, razaoSocial: `Posto ${n} Ltda`, aceiteTermos: true } });
   expect(r.statusCode).toBe(201);
   return { cookie: String(r.headers['set-cookie']).split(';')[0]!, cnpj };
 }
@@ -33,7 +38,7 @@ beforeAll(async () => {
   db = criarPool(URL_TESTE);
   await db.query('DROP SCHEMA public CASCADE; CREATE SCHEMA public;');
   await migrar(db);
-  app = await criarApp({ db, agora: () => agora, autoridades: [CA_TESTE] });
+  app = await criarApp({ db, agora: () => agora, autoridades: [CA_TESTE], cargaInicial: { ate: '', semanas: 8 }, enviarEmail });
 });
 afterAll(async () => { await app?.close(); await db?.end(); });
 
@@ -47,9 +52,9 @@ describe('fluxo completo', () => {
 
   it('cadastra postos e recusa CNPJ inválido ou repetido', async () => {
     for (let i = 1; i <= 7; i++) postos.push(await cadastrar(i));
-    const ruim = await app.inject({ method: 'POST', url: '/api/cadastro', payload: { nome: 'X', email: 'x@x.com', senha: 'senha-segura', cnpj: '11111111111111', razaoSocial: 'X' } });
+    const ruim = await app.inject({ method: 'POST', url: '/api/cadastro', payload: { nome: 'X', email: 'x@x.com', senha: 'senha-segura', cnpj: '11111111111111', razaoSocial: 'X', aceiteTermos: true } });
     expect(ruim.statusCode).toBe(400);
-    const rep = await app.inject({ method: 'POST', url: '/api/cadastro', payload: { nome: 'Fulano', email: 'y@x.com', senha: 'senha-segura', cnpj: postos[0]!.cnpj, razaoSocial: 'Posto Repetido' } });
+    const rep = await app.inject({ method: 'POST', url: '/api/cadastro', payload: { nome: 'Fulano', email: 'y@x.com', senha: 'senha-segura', cnpj: postos[0]!.cnpj, razaoSocial: 'Posto Repetido', aceiteTermos: true } });
     expect(rep.statusCode, rep.body).toBe(409);
   });
 
@@ -171,6 +176,82 @@ describe('fluxo completo', () => {
     const s = await app.inject({ method: 'POST', url: `/api/admin/usuarios/${rows[0].id}/senha`, headers: { cookie: adm } });
     const entrar = await app.inject({ method: 'POST', url: '/api/entrar', payload: { email: 'p2@teste.com', senha: s.json().senha } });
     expect(entrar.statusCode).toBe(200);
+  });
+
+  it('cadastro exige aceite dos termos e grava a versão', async () => {
+    const cnpj = completarCnpj('300000010001');
+    const sem = await app.inject({ method: 'POST', url: '/api/cadastro', payload: { nome: 'Sem Aceite', email: 'sa@teste.com', senha: 'senha-segura', cnpj, razaoSocial: 'Posto SA' } });
+    expect(sem.statusCode).toBe(400);
+    const { rows } = await db.query("SELECT termos_versao, termos_aceitos_em FROM usuarios WHERE email = 'p1@teste.com'");
+    expect(rows[0].termos_versao).toBeTruthy();
+    expect(rows[0].termos_aceitos_em).toBeTruthy();
+  });
+
+  it('nova versão dos termos bloqueia o uso até o novo aceite', async () => {
+    // a sessão anterior do p2 caiu com a senha provisória gerada no teste da administração
+    const { rows: [u2] } = await db.query("SELECT id FROM usuarios WHERE email = 'p2@teste.com'");
+    const p = { cookie: 'sessao=' + (await criarSessao(db, u2.id)).token };
+    await db.query("UPDATE usuarios SET termos_versao = 'antiga' WHERE email = 'p2@teste.com'");
+    const bloqueado = await app.inject({ url: '/api/painel?semana=2026-10-12&produto=gc&nivel=brasil&area=BR', headers: { cookie: p.cookie } });
+    expect(bloqueado.statusCode).toBe(403);
+    expect(bloqueado.json().motivo).toBe('termos');
+    expect((await app.inject({ url: '/api/eu', headers: { cookie: p.cookie } })).json().termosPendentes).toBe(true);
+    expect((await app.inject({ method: 'POST', url: '/api/termos', headers: { cookie: p.cookie }, payload: { aceito: true } })).statusCode).toBe(200);
+    expect((await app.inject({ url: '/api/painel?semana=2026-10-12&produto=gc&nivel=brasil&area=BR', headers: { cookie: p.cookie } })).statusCode).toBe(200);
+  });
+
+  it('termos e política de privacidade estão publicados', async () => {
+    const r = await app.inject({ url: '/privacidade' });
+    expect(r.statusCode).toBe(200);
+    expect(r.body).toContain('Lei Geral de Proteção de Dados');
+    expect(r.body).not.toContain('{{');
+  });
+
+  it('recupera a senha por e-mail com link de uso único', async () => {
+    emails.length = 0;
+    expect((await app.inject({ method: 'POST', url: '/api/senha/esqueci', payload: { email: 'naoexiste@teste.com' } })).statusCode).toBe(200);
+    expect(emails).toHaveLength(0);
+    await app.inject({ method: 'POST', url: '/api/senha/esqueci', payload: { email: 'P3@teste.com' } });
+    expect(emails).toHaveLength(1);
+    const codigo = /redefinir=([\w-]+)/.exec(emails[0]!.texto)![1]!;
+    const r = await app.inject({ method: 'POST', url: '/api/senha/redefinir', payload: { codigo, senha: 'senha-nova-123' } });
+    expect(r.statusCode).toBe(200);
+    expect((await app.inject({ method: 'POST', url: '/api/senha/redefinir', payload: { codigo, senha: 'outra-senha-123' } })).statusCode).toBe(400);
+    expect((await app.inject({ method: 'POST', url: '/api/entrar', payload: { email: 'p3@teste.com', senha: 'senha-nova-123' } })).statusCode).toBe(200);
+    expect((await app.inject({ url: '/api/eu', headers: { cookie: postos[2]!.cookie } })).statusCode).toBe(401);
+  });
+
+  it('lembra na segunda quem não completou a semana anterior, uma vez só', async () => {
+    emails.length = 0;
+    const segunda = new Date('2026-10-26T10:00:00-03:00');
+    const n = await enviarLembretes(db, enviarEmail, segunda);
+    expect(n).toBeGreaterThan(0);
+    const destinatarios = emails.map(e => e.para);
+    expect(destinatarios).toContain('p1@teste.com');
+    expect(destinatarios).not.toContain('p2@teste.com'); // completou a semana com "não comprei"
+    expect(emails[0]!.assunto).toMatch(/19\/10\/2026/);
+    expect(await enviarLembretes(db, enviarEmail, segunda)).toBe(0);
+    await db.query("UPDATE usuarios SET lembretes = false WHERE email = 'p1@teste.com'");
+    expect(await enviarLembretes(db, enviarEmail, new Date('2026-10-27T13:00:00-03:00'))).toBeGreaterThan(0);
+    expect(emails.slice(n).map(e => e.para)).not.toContain('p1@teste.com');
+  });
+
+  it('carga inicial aceita semanas anteriores e publica tudo de uma vez no fim', async () => {
+    agora = new Date('2026-11-03T10:00:00-03:00');
+    const carga = await criarApp({ db, agora: () => agora, autoridades: [CA_TESTE], cargaInicial: { ate: '2026-11-06', semanas: 8 }, enviarEmail });
+    const novo = await carga.inject({ method: 'POST', url: '/api/cadastro', payload: { nome: 'Posto Novo', email: 'novo@teste.com', senha: 'senha-segura', cnpj: completarCnpj('200000010001'), razaoSocial: 'Posto Novo', aceiteTermos: true } });
+    const cookie = String(novo.headers['set-cookie']).split(';')[0]!;
+    const cnpj = completarCnpj('200000010001');
+    const nota = (n: number, quando: string) => carga.inject({ method: 'POST', url: '/api/nfes', headers: { cookie, 'content-type': 'application/xml' },
+      payload: notaAssinada({ numero: n, emitidaEm: quando, destinatario: { cnpj, nome: 'POSTO', municipio: '3509502', municipioNome: 'X', uf: 'SP' }, itens: [{ produto: 'gc', litros: 1000, precoLitro: 5.7 }] }) });
+    const antiga = await nota(9001, '2026-09-15T08:00:00-03:00');
+    expect(antiga.statusCode, antiga.body).toBe(201);
+    expect((await nota(9002, '2026-10-13T08:00:00-03:00')).statusCode).toBe(422); // semana já publicada
+    expect((await nota(9003, '2026-08-25T08:00:00-03:00')).statusCode).toBe(422); // antes da janela
+    expect((await carga.inject({ url: '/api/eu', headers: { cookie } })).json().cargaInicial).toEqual({ desde: '2026-09-07', ate: '2026-11-06' });
+    expect(await fecharSemanasPendentes(db, new Date('2026-11-05T10:00:00-03:00'), '2026-11-06')).toEqual([]);
+    expect(await fecharSemanasPendentes(db, new Date('2026-11-07T00:30:00-03:00'), '2026-11-06')).toContain('2026-09-14');
+    await carga.close();
   });
 
   it('exige login', async () => {
