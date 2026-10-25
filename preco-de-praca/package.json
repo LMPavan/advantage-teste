@@ -1,0 +1,37 @@
+{
+  "name": "preco-de-praca",
+  "version": "1.0.0",
+  "description": "Preço de Praça: preços de compra de combustível compartilhados por postos, validados por NF-e",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "start": "tsx src/server.ts",
+    "db:migrate": "tsx src/cli/migrar.ts",
+    "demo": "tsx src/cli/demo.ts",
+    "fechar-semana": "tsx src/cli/fechar-semana.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "author": "",
+  "license": "UNLICENSED",
+  "dependencies": {
+    "@fastify/cookie": "^11.1.3",
+    "@fastify/static": "^10.1.7",
+    "@xmldom/xmldom": "^0.9.12",
+    "fastify": "^5.12.7",
+    "pg": "^8.23.1",
+    "xml-crypto": "^6.4.0",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "@types/pg": "^8.23.1",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.5"
+  },
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  }
+}
