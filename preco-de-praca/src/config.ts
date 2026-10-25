@@ -1,3 +1,8 @@
+import { existsSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+
+const PASTA_ICP = fileURLToPath(new URL('../data/icp-brasil/', import.meta.url));
+
 function num(nome: string, padrao: number): number {
   const v = process.env[nome];
   if (v === undefined || v === '') return padrao;
@@ -11,8 +16,12 @@ export const config = {
   porta: num('PORT', 3000),
   kMinimo: num('K_MINIMO', 5),
   prazoDias: num('PRAZO_DIAS', 2),
-  icpBrasilCaDir: process.env.ICP_BRASIL_CA_DIR || '',
+  // Sem configuração, usa data/icp-brasil quando existir (npm run icp)
+  icpBrasilCaDir: process.env.ICP_BRASIL_CA_DIR || (existsSync(PASTA_ICP) ? PASTA_ICP : ''),
   demo: process.env.DEMO === '1',
+  producao: process.env.NODE_ENV === 'production',
+  // Se definido, o cadastro exige este código (piloto fechado)
+  codigoConvite: process.env.CODIGO_CONVITE || '',
   diasTeste: num('DIAS_TESTE', 30),
   // "Não comprei" aceito por no máximo N semanas seguidas por produto
   semCompraMaxSeguidas: num('SEM_COMPRA_MAX_SEGUIDAS', 2),

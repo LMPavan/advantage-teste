@@ -16,7 +16,7 @@ const ConsultaTabela = Consulta.extend({ agrupar: NivelZ });
 
 interface Linha {
   semana: string; produto_id: ProdutoId; nivel: Nivel; area: string; distribuidora_id: number; postos: number; aberta: boolean;
-  minimo: number | null; media: number | null; mediana: number | null; moda: number | null; moda_postos: number | null; maximo: number | null;
+  media: number | null; mediana: number | null; moda: number | null; moda_postos: number | null;
 }
 
 /**
@@ -30,7 +30,7 @@ export function faixaPostos(n: number): string {
 }
 
 const celula = (l: Linha | undefined) => l ? {
-  postos: l.aberta ? faixaPostos(l.postos) : String(l.postos), aberta: l.aberta, minimo: l.minimo, media: l.media, mediana: l.mediana, moda: l.moda, modaPostos: l.moda_postos, maximo: l.maximo,
+  postos: l.aberta ? faixaPostos(l.postos) : String(l.postos), aberta: l.aberta, media: l.media, mediana: l.mediana, moda: l.moda, modaPostos: l.moda_postos,
 } : null;
 
 const COLUNA_ESCOPO: Record<Nivel, string | null> = { brasil: null, regiao: 'regiao', uf: 'uf', meso: 'meso', micro: null };
@@ -83,7 +83,7 @@ export function rotasPainel(app: FastifyInstance, ctx: Contexto): void {
     ]);
 
     // Posição do próprio posto em relação à área mais estreita aberta em volta dele
-    const posto = ok.postos[0]!;
+    const posto = ok.postos.find(p => p.municipio) ?? ok.postos[0]!;
     let minha = null;
     if (posto.municipio) {
       const a = areasDoMunicipio(ctx.geo, posto.municipio)!;

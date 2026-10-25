@@ -1,12 +1,11 @@
+// Mínima e máxima não são calculadas: cada uma é o preço efetivo de um único participante.
 export interface Resumo {
   postos: number;
-  minimo: number;
   media: number;
   mediana: number;
   /** Preço mais frequente arredondado ao centavo; null quando nenhum valor se repete */
   moda: number | null;
   modaPostos: number | null;
-  maximo: number;
 }
 
 const r4 = (v: number) => Math.round(v * 10000) / 10000;
@@ -27,9 +26,8 @@ export function resumir(valores: number[]): Resumo {
     if (c > modaPostos || (c === modaPostos && moda !== null && centavos < moda)) { moda = centavos; modaPostos = c; }
   }
   return {
-    postos: n, minimo: r4(a[0]!), media: r4(media), mediana: r4(mediana),
+    postos: n, media: r4(media), mediana: r4(mediana),
     moda: moda === null ? null : moda / 100, modaPostos: moda === null ? null : modaPostos,
-    maximo: r4(a[n - 1]!),
   };
 }
 

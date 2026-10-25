@@ -1,6 +1,9 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
-import { exigirLogin } from '../auth.ts';
+import { randomBytes } from 'node:crypto';
+import { situacaoPostos } from '../acesso.ts';
+import { exigirLogin, gerarHash } from '../auth.ts';
+import { nomeArea, areasDoMunicipio } from '../contexto.ts';
 import type { Contexto } from '../contexto.ts';
 
 export function rotasAdmin(app: FastifyInstance, ctx: Contexto): void {
@@ -46,6 +49,40 @@ export function rotasAdmin(app: FastifyInstance, ctx: Contexto): void {
     const r = Dist.safeParse(req.body);
     if (!r.success) return reply.code(400).send({ erro: 'Nome inválido.' });
     await db.query('UPDATE distribuidoras SET nome = $1, revisada = true WHERE id = $2', [r.data.nome, Number((req.params as { id: string }).id)]);
+    return { ok: true };
+  });
+
+  // Participantes do piloto e a situação de cada posto na semana
+  app.get('/api/admin/postos', async (req, reply) => {
+    if (!exigirAdmin(req, reply)) return;
+    const { rows: usuarios } = await db.query<{ id: number; email: string; nome: string; admin: boolean }>('SELECT id, email, nome, admin FROM usuarios ORDER BY id');
+    const situacoes = await Promise.all(usuarios.map(u => situacaoPostos(db, u.id, ctx.agora())));
+    const out = usuarios.flatMap((u, i) => situacoes[i]!.map(p => {
+      const a = p.municipio ? areasDoMunicipio(ctx.geo, p.municipio) : null;
+      return { usuario: { id: u.id, email: u.email, nome: u.nome }, ...p, micro: a ? nomeArea(ctx.geo, 'micro', a.micro) : null };
+    }));
+    const semanas = await db.query('SELECT semana, postos, fechada_em FROM semanas_fechadas ORDER BY semana DESC LIMIT 8');
+    return { postos: out, semanas: semanas.rows };
+  });
+
+  // Sem e-mail no piloto: a administração gera uma senha provisória e passa ao cliente
+  app.post('/api/admin/usuarios/:id/senha', async (req, reply) => {
+    if (!exigirAdmin(req, reply)) return;
+    const senha = randomBytes(6).toString('base64url');
+    const id = Number((req.params as { id: string }).id);
+    const { rowCount } = await db.query('UPDATE usuarios SET senha_hash = $1 WHERE id = $2', [await gerarHash(senha), id]);
+    if (!rowCount) return reply.code(404).send({ erro: 'Usuário não encontrado.' });
+    await db.query('DELETE FROM sessoes WHERE usuario_id = $1', [id]);
+    return { senha };
+  });
+
+  const Assinatura = z.object({ assinatura: z.enum(['teste', 'ativa', 'inadimplente', 'cancelada']), testeAte: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional() });
+  app.post('/api/admin/postos/:id/assinatura', async (req, reply) => {
+    if (!exigirAdmin(req, reply)) return;
+    const r = Assinatura.safeParse(req.body);
+    if (!r.success) return reply.code(400).send({ erro: 'Situação inválida.' });
+    await db.query('UPDATE postos SET assinatura = $1, teste_ate = coalesce($2::date, teste_ate) WHERE id = $3',
+      [r.data.assinatura, r.data.testeAte ?? null, Number((req.params as { id: string }).id)]);
     return { ok: true };
   });
 }

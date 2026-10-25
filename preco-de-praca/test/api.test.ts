@@ -101,7 +101,8 @@ describe('fluxo completo', () => {
     const b = r.json();
     expect(b.area.nome).toBe('Campinas (SP)');
     const gc = b.kpis.find((k: { produto: string }) => k.produto === 'gc').atual;
-    expect(gc).toMatchObject({ aberta: true, postos: '5 a 9', minimo: 5.7, maximo: 5.75, mediana: 5.725 });
+    expect(gc).toMatchObject({ aberta: true, postos: '5 a 9', mediana: 5.725 });
+    expect(gc).not.toHaveProperty('minimo');
     const et = b.kpis.find((k: { produto: string }) => k.produto === 'et').atual;
     expect(et).toMatchObject({ aberta: false, postos: '1', mediana: null });
     expect(b.minha.valor).toBeCloseTo(5.7, 6);
@@ -131,6 +132,45 @@ describe('fluxo completo', () => {
     const r = await app.inject({ url: '/api/tabela?semana=2026-10-12&produto=gc&nivel=uf&area=SP&agrupar=micro', headers: { cookie: postos[0]!.cookie } });
     expect(r.statusCode).toBe(200);
     expect(r.json().linhas).toEqual([expect.objectContaining({ area: '35032', nome: 'Campinas (SP)' })]);
+  });
+
+  it('rede com vários postos: a nota vai para o posto do CNPJ destinatário', async () => {
+    const p = postos[0]!;
+    const filial = completarCnpj(p.cnpj.slice(0, 8) + '0002');
+    const r = await app.inject({ method: 'POST', url: '/api/postos', headers: { cookie: p.cookie }, payload: { cnpj: filial, razaoSocial: 'Posto 1 Filial' } });
+    expect(r.statusCode).toBe(201);
+    const nota = await enviar(p.cookie, filial, 5000, '2026-10-21T08:00:00-03:00', [{ produto: 'gc', precoLitro: 5.7 }], '3550308');
+    expect(nota.statusCode, nota.body).toBe(201);
+    expect(nota.json().postoId).toBe(r.json().id);
+    const { rows } = await db.query('SELECT municipio FROM postos WHERE id = $1', [r.json().id]);
+    expect(rows[0].municipio).toBe('3550308');
+  });
+
+  it('chave de API dá acesso sem navegador e pode ser revogada', async () => {
+    const p = postos[0]!;
+    const criada = await app.inject({ method: 'POST', url: '/api/tokens', headers: { cookie: p.cookie }, payload: { nome: 'ERP' } });
+    const { token, id } = criada.json();
+    expect(token).toMatch(/^pp_/);
+    const eu = await app.inject({ url: '/api/eu', headers: { authorization: 'Bearer ' + token } });
+    expect(eu.statusCode).toBe(200);
+    expect(eu.json().usuario.email).toBe('p1@teste.com');
+    const lista = await app.inject({ url: '/api/tokens', headers: { cookie: p.cookie } });
+    expect(JSON.stringify(lista.json())).not.toContain(token);
+    await app.inject({ method: 'DELETE', url: '/api/tokens/' + id, headers: { cookie: p.cookie } });
+    expect((await app.inject({ url: '/api/eu', headers: { authorization: 'Bearer ' + token } })).statusCode).toBe(401);
+  });
+
+  it('administração lista participantes e gera senha provisória', async () => {
+    await db.query("UPDATE usuarios SET admin = true WHERE email = 'p7@teste.com'");
+    const adm = postos[6]!.cookie;
+    const r = await app.inject({ url: '/api/admin/postos', headers: { cookie: adm } });
+    expect(r.statusCode).toBe(200);
+    expect(r.json().postos.length).toBeGreaterThanOrEqual(8);
+    expect((await app.inject({ url: '/api/admin/postos', headers: { cookie: postos[0]!.cookie } })).statusCode).toBe(403);
+    const { rows } = await db.query("SELECT id FROM usuarios WHERE email = 'p2@teste.com'");
+    const s = await app.inject({ method: 'POST', url: `/api/admin/usuarios/${rows[0].id}/senha`, headers: { cookie: adm } });
+    const entrar = await app.inject({ method: 'POST', url: '/api/entrar', payload: { email: 'p2@teste.com', senha: s.json().senha } });
+    expect(entrar.statusCode).toBe(200);
   });
 
   it('exige login', async () => {

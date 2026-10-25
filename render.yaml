@@ -1,0 +1,27 @@
+# Publicação no Render (https://render.com): New > Blueprint > escolha este repositório.
+services:
+  - type: web
+    name: preco-de-praca
+    runtime: docker
+    rootDir: preco-de-praca
+    dockerfilePath: ./Dockerfile
+    plan: starter            # sempre ligado; o plano free hiberna e atrasa o fechamento da semana
+    healthCheckPath: /saude
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: preco-de-praca-db
+          property: connectionString
+      - key: CODIGO_CONVITE      # código que o cliente digita no cadastro
+        sync: false
+      - key: ADMIN_EMAIL         # administrador criado na primeira subida
+        sync: false
+      - key: ADMIN_SENHA_INICIAL
+        sync: false
+databases:
+  - name: preco-de-praca-db
+    plan: basic-256mb
+    databaseName: precodepraca
+    user: app

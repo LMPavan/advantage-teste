@@ -42,15 +42,22 @@ export function rotasNfe(app: FastifyInstance, ctx: Contexto): void {
   const { db } = ctx;
 
   app.post('/api/nfes', async (req, reply) => {
-    const posto = await postoDoUsuario(ctx, req, reply); if (!posto) return;
+    const u = exigirLogin(req, reply); if (!u) return;
     const xml = typeof req.body === 'string' ? req.body : '';
-    let destino: string;
+    let destino: string, cnpjDestino: string;
     try {
-      destino = lerNfe(xml).destinatario.municipio;
+      const lida = lerNfe(xml);
+      destino = lida.destinatario.municipio;
+      cnpjDestino = lida.destinatario.cnpj;
     } catch (e) {
       if (e instanceof ErroLeitura) return reply.code(400).send({ erro: e.message });
       throw e;
     }
+    // A nota vai para o posto da conta com o CNPJ do destinatário; sem nenhum, a validação recusa pelo CNPJ
+    const { rows: meus } = await db.query<Posto>(
+      'SELECT id, cnpj, razao_social, municipio FROM postos WHERE usuario_id = $1 ORDER BY (cnpj = $2) DESC, id LIMIT 1', [u.id, cnpjDestino]);
+    const posto = meus[0];
+    if (!posto) return reply.code(404).send({ erro: 'Cadastre um posto antes de enviar notas.' });
     const refs = await medianasReferencia(ctx, posto.municipio ?? destino);
     let r;
     try {
@@ -111,6 +118,7 @@ export function rotasNfe(app: FastifyInstance, ctx: Contexto): void {
 
     return reply.code(r.status === 'recusada' ? 422 : 201).send({
       id: nfeId,
+      postoId: posto.id,
       status: r.status,
       semana: r.semana,
       verificacoes: r.verificacoes,
@@ -124,12 +132,12 @@ export function rotasNfe(app: FastifyInstance, ctx: Contexto): void {
   });
 
   app.get('/api/nfes', async (req, reply) => {
-    const posto = await postoDoUsuario(ctx, req, reply); if (!posto) return;
+    const u = exigirLogin(req, reply); if (!u) return;
     const { rows } = await db.query(`
-      SELECT n.id, n.chave, n.emitente_nome, n.emitida_em, n.semana, n.status, n.motivos, n.enviada_em,
+      SELECT n.id, n.chave, n.posto_id, n.emitente_nome, n.emitida_em, n.semana, n.status, n.motivos, n.enviada_em,
              coalesce(json_agg(json_build_object('produto', i.produto_id, 'litros', i.litros, 'precoLitro', i.preco_litro)) FILTER (WHERE i.id IS NOT NULL), '[]') AS itens
         FROM nfes n LEFT JOIN nfe_itens i ON i.nfe_id = n.id
-       WHERE n.posto_id = $1 GROUP BY n.id ORDER BY n.enviada_em DESC LIMIT 50`, [posto.id]);
+       WHERE n.posto_id IN (SELECT id FROM postos WHERE usuario_id = $1) GROUP BY n.id ORDER BY n.enviada_em DESC LIMIT 50`, [u.id]);
     return { nfes: rows };
   });
 

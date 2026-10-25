@@ -11,7 +11,8 @@ export const NIVEIS: Nivel[] = ['brasil', 'regiao', 'uf', 'meso', 'micro'];
 export const NIVEIS_DISTRIBUIDORA: Nivel[] = ['brasil', 'regiao', 'uf'];
 
 export interface Contribuicao {
-  postoId: number;
+  /** Quem conta para o mínimo: a empresa (raiz do CNPJ), para uma rede não abrir sozinha uma área */
+  participanteId: number;
   produto: ProdutoId;
   distribuidoraId: number;
   litros: number;
@@ -30,7 +31,7 @@ export interface Celula {
   regiao: string | null;
   uf: string | null;
   meso: string | null;
-  /** valor de cada posto na célula (média ponderada por volume na semana) */
+  /** valor de cada participante na célula (média ponderada por volume na semana) */
   valores: Map<number, number>;
   aberta: boolean;
   motivo: 'poucos_postos' | 'protecao_subtracao' | null;
@@ -53,7 +54,7 @@ function caminho(c: Contribuicao): [Nivel, string, string | null, string | null,
 /**
  * Calcula as células publicáveis de uma semana.
  *
- * 1. Mínimo de postos: uma célula só abre com pelo menos `k` postos distintos.
+ * 1. Mínimo de participantes: uma célula só abre com pelo menos `k` empresas distintas (raiz do CNPJ).
  * 2. Proteção contra subtração: quem vê uma área e as subáreas abertas dentro dela consegue calcular o que sobra.
  *    Se esse resto tem entre 1 e k-1 postos, fechamos mais uma célula até o resto ficar vazio ou com k ou mais.
  *    A verificação cobre a hierarquia dos totais, a de cada distribuidora e a "área menos distribuidoras".
@@ -75,8 +76,8 @@ export function calcularCelulas(contribuicoes: Contribuicao[], k: number): Celul
           const ch = chave(nivel, area, dist);
           if (!itens.has(ch)) { itens.set(ch, new Map()); meta.set(ch, { produto, nivel, area, distribuidoraId: dist, regiao, uf, meso }); }
           const porPosto = itens.get(ch)!;
-          if (!porPosto.has(c.postoId)) porPosto.set(c.postoId, []);
-          porPosto.get(c.postoId)!.push(c);
+          if (!porPosto.has(c.participanteId)) porPosto.set(c.participanteId, []);
+          porPosto.get(c.participanteId)!.push(c);
         }
       }
     }

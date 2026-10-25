@@ -1,4 +1,4 @@
-import { randomBytes, scrypt as scryptCb, timingSafeEqual } from 'node:crypto';
+import { createHash, randomBytes, scrypt as scryptCb, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
 import '@fastify/cookie';
 import type { FastifyReply, FastifyRequest } from 'fastify';
@@ -36,8 +36,25 @@ declare module 'fastify' {
   interface FastifyRequest { usuario: Usuario | null }
 }
 
+/** Chave de API para integração com o sistema do cliente. Só o hash fica no banco. */
+export function gerarTokenApi(): { token: string; hash: string; prefixo: string } {
+  const token = 'pp_' + randomBytes(24).toString('base64url');
+  return { token, hash: hashToken(token), prefixo: token.slice(0, 7) };
+}
+
+export const hashToken = (token: string) => createHash('sha256').update(token).digest('hex');
+
 export async function carregarUsuario(db: Db, req: FastifyRequest): Promise<void> {
   req.usuario = null;
+  const bearer = /^Bearer\s+(\S+)$/i.exec(req.headers.authorization ?? '')?.[1];
+  if (bearer) {
+    const { rows } = await db.query<Usuario>(
+      `UPDATE tokens_api t SET usado_em = now() FROM usuarios u
+        WHERE t.hash = $1 AND t.revogado_em IS NULL AND u.id = t.usuario_id
+        RETURNING u.id, u.email, u.nome, u.admin`, [hashToken(bearer)]);
+    req.usuario = rows[0] ?? null;
+    return;
+  }
   const token = req.cookies[COOKIE];
   if (!token) return;
   const { rows } = await db.query<Usuario>(

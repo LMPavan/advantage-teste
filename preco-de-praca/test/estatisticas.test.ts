@@ -2,9 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { mediaPonderada, resumir } from '../src/estatistica/estatisticas.ts';
 
 describe('resumir', () => {
-  it('calcula mínima, média, mediana, moda e máxima', () => {
+  it('calcula média, mediana e moda, sem mínima nem máxima', () => {
     const r = resumir([5.701, 5.704, 5.80, 5.62, 5.7049]);
-    expect(r).toMatchObject({ postos: 5, minimo: 5.62, maximo: 5.8, mediana: 5.704 });
+    expect(r).toMatchObject({ postos: 5, mediana: 5.704 });
+    expect(r).not.toHaveProperty('minimo');
+    expect(r).not.toHaveProperty('maximo');
     expect(r.media).toBeCloseTo(5.70598, 4);
     // 5,701 / 5,704 / 5,7049 caem todos em R$ 5,70
     expect(r.moda).toBe(5.7);

@@ -10,10 +10,10 @@ import { calcularCelulas, type Contribuicao } from './sigilo.ts';
  */
 export async function fecharSemana(db: Db, semana: string, k = config.kMinimo): Promise<{ postos: number; celulas: number; abertas: number }> {
   const { rows } = await db.query<{
-    posto_id: number; produto_id: Contribuicao['produto']; distribuidora_id: number; litros: number; preco_litro: number;
+    participante: number; produto_id: Contribuicao['produto']; distribuidora_id: number; litros: number; preco_litro: number;
     regiao: string; uf: string; meso: string; micro: string;
   }>(`
-    SELECT n.posto_id, i.produto_id, coalesce(n.distribuidora_id, 0) AS distribuidora_id, i.litros, i.preco_litro,
+    SELECT substring(p.cnpj, 1, 8)::int AS participante, i.produto_id, coalesce(n.distribuidora_id, 0) AS distribuidora_id, i.litros, i.preco_litro,
            me.regiao, me.uf, me.codigo AS meso, mi.codigo AS micro
       FROM nfes n
       JOIN nfe_itens i ON i.nfe_id = n.id
@@ -24,11 +24,11 @@ export async function fecharSemana(db: Db, semana: string, k = config.kMinimo): 
      WHERE n.semana = $1 AND n.status = 'aceita'`, [semana]);
 
   const contribuicoes: Contribuicao[] = rows.map(r => ({
-    postoId: r.posto_id, produto: r.produto_id, distribuidoraId: r.distribuidora_id, litros: r.litros, precoLitro: r.preco_litro,
+    participanteId: r.participante, produto: r.produto_id, distribuidoraId: r.distribuidora_id, litros: r.litros, precoLitro: r.preco_litro,
     regiao: r.regiao, uf: r.uf, meso: r.meso, micro: r.micro,
   }));
   const celulas = calcularCelulas(contribuicoes, k);
-  const postos = new Set(contribuicoes.map(c => c.postoId)).size;
+  const postos = new Set(contribuicoes.map(c => c.participanteId)).size;
 
   const cliente = await db.connect();
   try {
@@ -40,11 +40,11 @@ export async function fecharSemana(db: Db, semana: string, k = config.kMinimo): 
       const valores = lote.map(c => {
         const r = c.resumo;
         const linha = [semana, c.produto, c.nivel, c.area, c.distribuidoraId, c.regiao, c.uf, c.meso, c.valores.size, c.aberta,
-          r?.minimo ?? null, r?.media ?? null, r?.mediana ?? null, r?.moda ?? null, r?.modaPostos ?? null, r?.maximo ?? null];
+          r?.media ?? null, r?.mediana ?? null, r?.moda ?? null, r?.modaPostos ?? null];
         return '(' + linha.map(v => { params.push(v); return '$' + params.length; }).join(',') + ')';
       });
       await cliente.query(`INSERT INTO estatisticas (semana, produto_id, nivel, area, distribuidora_id, regiao, uf, meso, postos, aberta,
-        minimo, media, mediana, moda, moda_postos, maximo) VALUES ${valores.join(',')}`, params);
+        media, mediana, moda, moda_postos) VALUES ${valores.join(',')}`, params);
     }
     await cliente.query('COMMIT');
   } catch (e) {

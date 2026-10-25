@@ -5,7 +5,7 @@ const K = 5;
 let proximo = 1;
 function postos(n: number, onde: { micro: string; meso?: string; uf?: string }, dist = 1, preco = 5.7): Contribuicao[] {
   return Array.from({ length: n }, (_, i) => ({
-    postoId: proximo++, produto: 'gc' as const, distribuidoraId: dist, litros: 10000, precoLitro: preco + i / 100,
+    participanteId: proximo++, produto: 'gc' as const, distribuidoraId: dist, litros: 10000, precoLitro: preco + i / 100,
     regiao: 'SE', uf: onde.uf ?? 'SP', meso: onde.meso ?? '3507', micro: onde.micro,
   }));
 }
@@ -46,6 +46,10 @@ describe('regra do mínimo de postos', () => {
     expect(achar(calcularCelulas(postos(5, { micro: '35032' }), K), 'micro', '35032').aberta).toBe(true);
     expect(achar(calcularCelulas(postos(4, { micro: '35032' }), K), 'micro', '35032')).toMatchObject({ aberta: false, motivo: 'poucos_postos', resumo: null });
   });
+  it('conta empresas, não postos: uma rede com 5 postos não abre a área sozinha', () => {
+    const rede = postos(5, { micro: '35032' }).map(c => ({ ...c, participanteId: 999 }));
+    expect(achar(calcularCelulas(rede, K), 'micro', '35032').aberta).toBe(false);
+  });
   it('não existe célula de município', () => {
     const cs = calcularCelulas(postos(6, { micro: '35032' }), K);
     expect(new Set(cs.map(c => c.nivel))).toEqual(new Set(['brasil', 'regiao', 'uf', 'meso', 'micro']));
@@ -58,7 +62,7 @@ describe('regra do mínimo de postos', () => {
     ], K);
     const c = achar(cs, 'micro', '35032');
     expect(c.valores.size).toBe(5);
-    expect(c.valores.get(base.postoId)).toBeCloseTo(5.1, 10);
+    expect(c.valores.get(base.participanteId)).toBeCloseTo(5.1, 10);
   });
 });
 
